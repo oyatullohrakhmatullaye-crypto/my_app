@@ -16,10 +16,19 @@ class SalesScreen extends StatefulWidget {
 class _SalesScreenState extends State<SalesScreen> {
   final Map<String, int> _qty = {};
   final SpeechToText _speech = SpeechToText();
+  final ValueNotifier<bool> _speechBusySignal = ValueNotifier<bool>(false);
+  final ValueNotifier<String> _voiceTextSignal = ValueNotifier<String>('');
 
   bool _speechReady = false;
-  bool _speechBusy = false;
   String _voiceText = '';
+
+  @override
+  void dispose() {
+    _speech.stop();
+    _speechBusySignal.dispose();
+    _voiceTextSignal.dispose();
+    super.dispose();
+  }
 
   int _qFor(String id, int maxStock) {
     final v = _qty[id] ?? 1;
@@ -39,11 +48,12 @@ class _SalesScreenState extends State<SalesScreen> {
     _speechReady = await _speech.initialize(
       onStatus: (status) {
         if (!mounted) return;
-        setState(() => _speechBusy = status == 'listening');
+        final listening = status == 'listening';
+        _speechBusySignal.value = listening;
       },
       onError: (_) {
         if (!mounted) return;
-        setState(() => _speechBusy = false);
+        _speechBusySignal.value = false;
       },
     );
   }
@@ -60,7 +70,7 @@ class _SalesScreenState extends State<SalesScreen> {
       return;
     }
 
-    setState(() => _speechBusy = true);
+    _speechBusySignal.value = true;
     await _speech.listen(
       listenOptions: SpeechListenOptions(
         localeId: 'uz_UZ',
@@ -71,13 +81,14 @@ class _SalesScreenState extends State<SalesScreen> {
         ctrl.text = result.recognizedWords;
         ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
         if (mounted) setState(() => _voiceText = result.recognizedWords);
+        _voiceTextSignal.value = result.recognizedWords;
       },
     );
   }
 
   Future<void> _stopListening() async {
     await _speech.stop();
-    if (mounted) setState(() => _speechBusy = false);
+    _speechBusySignal.value = false;
   }
 
   Future<void> _sellFromVoice(String text) async {
@@ -94,6 +105,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
   Future<void> _openVoiceDialog() async {
     final ctrl = TextEditingController(text: _voiceText);
+    _voiceTextSignal.value = _voiceText;
     try {
       final ok = await showDialog<bool>(
         context: context,
@@ -111,35 +123,88 @@ class _SalesScreenState extends State<SalesScreen> {
 
             return AlertDialog(
               title: const Text('Ovoz orqali sotish'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    _speechBusy
-                        ? 'Gapiring: masalan, “5 dona 2x4 taxta sotildi”.'
-                        : 'Mikrofonni bosing va sotuvni ayting.',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(height: 14),
-                  FilledButton.icon(
-                    onPressed: _speechBusy ? stop : listen,
-                    icon: Icon(_speechBusy ? Icons.stop : Icons.mic),
-                    label: Text(_speechBusy ? 'To‘xtatish' : 'Gapirish'),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: ctrl,
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'Tushgan matn',
-                      hintText: '5 dona 2x4 taxta sotildi',
-                      prefixIcon: Icon(Icons.record_voice_over_outlined),
-                    ),
-                    onChanged: (v) => _voiceText = v,
-                  ),
-                ],
+              content: ValueListenableBuilder<bool>(
+                valueListenable: _speechBusySignal,
+                builder: (context, listening, _) {
+                  final activeColor = listening
+                      ? const Color(0xFF1F8F5F)
+                      : Theme.of(context).colorScheme.primary;
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: listening
+                              ? const Color(0xFFE7F6EE)
+                              : const Color(0xFFF5EEE9),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: activeColor, width: 2),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              listening ? Icons.hearing : Icons.mic_none,
+                              color: activeColor,
+                              size: 44,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              listening ? 'ESHITYAPTI' : 'MIKROFON TAYYOR',
+                              style: TextStyle(
+                                color: activeColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              listening
+                                  ? 'Gapiring: “beshta 2x4 taxta sotildi”.'
+                                  : 'Bosilganda yashil bo‘lsa, app gapni eshityapti.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: activeColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: listening ? stop : listen,
+                        icon: Icon(listening ? Icons.stop : Icons.mic),
+                        label: Text(
+                            listening ? 'To‘xtatish' : 'Gapirishni boshlash'),
+                      ),
+                      const SizedBox(height: 14),
+                      ValueListenableBuilder<String>(
+                        valueListenable: _voiceTextSignal,
+                        builder: (context, value, _) {
+                          return TextField(
+                            controller: ctrl,
+                            minLines: 2,
+                            maxLines: 4,
+                            decoration: const InputDecoration(
+                              labelText: 'Tushgan matn',
+                              hintText: 'beshta 2x4 taxta sotildi',
+                              prefixIcon:
+                                  Icon(Icons.record_voice_over_outlined),
+                            ),
+                            onChanged: (v) {
+                              _voiceText = v;
+                              _voiceTextSignal.value = v;
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  );
+                },
               ),
               actions: [
                 TextButton(
