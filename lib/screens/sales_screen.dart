@@ -17,6 +17,8 @@ class _SalesScreenState extends State<SalesScreen> {
   final Map<String, int> _qty = {};
   final SpeechToText _speech = SpeechToText();
   final ValueNotifier<bool> _speechBusySignal = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> _voiceUnavailableSignal =
+      ValueNotifier<bool>(false);
   final ValueNotifier<String> _voiceTextSignal = ValueNotifier<String>('');
   final ValueNotifier<String> _voiceStatusSignal =
       ValueNotifier<String>('Tugmani bosing, keyin gapiring.');
@@ -28,6 +30,7 @@ class _SalesScreenState extends State<SalesScreen> {
   void dispose() {
     _speech.stop();
     _speechBusySignal.dispose();
+    _voiceUnavailableSignal.dispose();
     _voiceTextSignal.dispose();
     _voiceStatusSignal.dispose();
     super.dispose();
@@ -70,10 +73,13 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   Future<void> _startListening(TextEditingController ctrl) async {
+    _voiceUnavailableSignal.value = false;
     try {
       await _ensureSpeechReady();
     } catch (e) {
-      _voiceStatusSignal.value = 'Mikrofon ishga tushmadi: $e';
+      _speechBusySignal.value = false;
+      _voiceUnavailableSignal.value = true;
+      _voiceStatusSignal.value = _friendlySpeechError(e);
       return;
     }
 
@@ -92,25 +98,31 @@ class _SalesScreenState extends State<SalesScreen> {
     _speechBusySignal.value = true;
     _voiceStatusSignal.value = 'Eshityapti. Hozir gapiring.';
     final localeId = await _bestLocaleId();
-    await _speech.listen(
-      listenOptions: SpeechListenOptions(
-        localeId: localeId,
-        partialResults: true,
-        listenMode: ListenMode.confirmation,
-        cancelOnError: false,
-      ),
-      onResult: (SpeechRecognitionResult result) {
-        ctrl.text = result.recognizedWords;
-        ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
-        if (mounted) setState(() => _voiceText = result.recognizedWords);
-        _voiceTextSignal.value = result.recognizedWords;
-        if (result.recognizedWords.trim().isNotEmpty) {
-          _voiceStatusSignal.value = result.finalResult
-              ? 'Matn tayyor. Sotish tugmasini bosing.'
-              : 'Eshityapti, matn tushyapti...';
-        }
-      },
-    );
+    try {
+      await _speech.listen(
+        listenOptions: SpeechListenOptions(
+          localeId: localeId,
+          partialResults: true,
+          listenMode: ListenMode.confirmation,
+          cancelOnError: false,
+        ),
+        onResult: (SpeechRecognitionResult result) {
+          ctrl.text = result.recognizedWords;
+          ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
+          if (mounted) setState(() => _voiceText = result.recognizedWords);
+          _voiceTextSignal.value = result.recognizedWords;
+          if (result.recognizedWords.trim().isNotEmpty) {
+            _voiceStatusSignal.value = result.finalResult
+                ? 'Matn tayyor. Sotish tugmasini bosing.'
+                : 'Eshityapti, matn tushyapti...';
+          }
+        },
+      );
+    } catch (e) {
+      _speechBusySignal.value = false;
+      _voiceUnavailableSignal.value = true;
+      _voiceStatusSignal.value = _friendlySpeechError(e);
+    }
   }
 
   Future<void> _stopListening() async {
@@ -133,6 +145,17 @@ class _SalesScreenState extends State<SalesScreen> {
     }
   }
 
+  String _friendlySpeechError(Object error) {
+    final raw = error.toString();
+    if (raw.contains('MissingPluginException')) {
+      return 'Bu web preview’da mikrofon ulanmagan. Hozir matnni qo‘lda kiriting yoki Chrome/telefon buildda sinang.';
+    }
+    if (raw.toLowerCase().contains('permission')) {
+      return 'Mikrofon ruxsati berilmadi. Brauzer sozlamasidan mikrofonni yoqing.';
+    }
+    return 'Mikrofon ishga tushmadi. Matnni qo‘lda kiriting yoki qayta urinib ko‘ring.';
+  }
+
   Future<void> _sellFromVoice(String text) async {
     final err = context.read<ShopService>().sellFromVoiceText(text);
     if (!mounted) return;
@@ -148,6 +171,7 @@ class _SalesScreenState extends State<SalesScreen> {
   Future<void> _openVoiceDialog() async {
     final ctrl = TextEditingController(text: _voiceText);
     _voiceTextSignal.value = _voiceText;
+    _voiceUnavailableSignal.value = false;
     _voiceStatusSignal.value = 'Tugmani bosing, keyin gapiring.';
     try {
       final ok = await showDialog<bool>(
@@ -219,7 +243,9 @@ class _SalesScreenState extends State<SalesScreen> {
                         builder: (context, status, _) {
                           final isError = status.contains('xatosi') ||
                               status.contains('qo‘llamayapti') ||
-                              status.contains('tushmadi');
+                              status.contains('tushmadi') ||
+                              status.contains('ulanmagan') ||
+                              status.contains('ruxsati berilmadi');
                           return Text(
                             status,
                             textAlign: TextAlign.center,
@@ -235,15 +261,33 @@ class _SalesScreenState extends State<SalesScreen> {
                         },
                       ),
                       const SizedBox(height: 14),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: activeColor,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: listening ? stop : listen,
-                        icon: Icon(listening ? Icons.stop : Icons.mic),
-                        label: Text(
-                            listening ? 'To‘xtatish' : 'Gapirishni boshlash'),
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _voiceUnavailableSignal,
+                        builder: (context, unavailable, _) {
+                          return FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: unavailable
+                                  ? Colors.grey.shade700
+                                  : activeColor,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: unavailable
+                                ? null
+                                : listening
+                                    ? stop
+                                    : listen,
+                            icon: Icon(unavailable
+                                ? Icons.mic_off_outlined
+                                : listening
+                                    ? Icons.stop
+                                    : Icons.mic),
+                            label: Text(unavailable
+                                ? 'Mikrofon mavjud emas'
+                                : listening
+                                    ? 'To‘xtatish'
+                                    : 'Gapirishni boshlash'),
+                          );
+                        },
                       ),
                       const SizedBox(height: 14),
                       ValueListenableBuilder<String>(
@@ -254,7 +298,7 @@ class _SalesScreenState extends State<SalesScreen> {
                             minLines: 2,
                             maxLines: 4,
                             decoration: const InputDecoration(
-                              labelText: 'Tushgan matn',
+                              labelText: 'Tushgan matn yoki qo‘lda yozish',
                               hintText: 'beshta 2x4 taxta sotildi',
                               prefixIcon:
                                   Icon(Icons.record_voice_over_outlined),
