@@ -1,5 +1,4 @@
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -19,8 +18,8 @@ class PdfReportService {
     String footerNote = '',
   }) async {
     final doc = pw.Document();
-    final daySales =
-        allSales.where((s) => _sameDay(s.at, day)).toList()..sort((a, b) => a.at.compareTo(b.at));
+    final daySales = allSales.where((s) => _sameDay(s.at, day)).toList()
+      ..sort((a, b) => a.at.compareTo(b.at));
 
     doc.addPage(
       pw.MultiPage(
@@ -38,16 +37,18 @@ class PdfReportService {
           pw.Text('Jami sotuv: ${grandTotal.toStringAsFixed(0)} so‘m',
               style: const pw.TextStyle(fontSize: 14)),
           pw.SizedBox(height: 16),
-          pw.Text('Ishchilar bo‘yicha', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.Table.fromTextArray(
+          pw.Text('Ishchilar bo‘yicha',
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.TableHelper.fromTextArray(
             headers: const ['Ishchi', 'Jami (so‘m)'],
             data: workerTotals.entries
                 .map((e) => [e.key, e.value.toStringAsFixed(0)])
                 .toList(),
           ),
           pw.SizedBox(height: 16),
-          pw.Text('Sotuvlar ro‘yxati', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.Table.fromTextArray(
+          pw.Text('Sotuvlar ro‘yxati',
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.TableHelper.fromTextArray(
             headers: const ['Vaqt', 'Mahsulot', 'Soni', 'Summa'],
             data: daySales
                 .map((s) => [
@@ -59,16 +60,18 @@ class PdfReportService {
                 .toList(),
           ),
           pw.SizedBox(height: 16),
-          pw.Text('Qoldiq', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.Table.fromTextArray(
+          pw.Text('Qoldiq',
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.TableHelper.fromTextArray(
             headers: const ['Mahsulot', 'O‘lcham', 'Qoldiq (dona)'],
-            data: products
-                .map((p) => [p.name, p.size, '${p.quantity}'])
-                .toList(),
+            data:
+                products.map((p) => [p.name, p.size, '${p.quantity}']).toList(),
           ),
           if (footerNote.isNotEmpty) ...[
             pw.SizedBox(height: 24),
-            pw.Text(footerNote, style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+            pw.Text(footerNote,
+                style:
+                    const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
           ],
         ],
       ),

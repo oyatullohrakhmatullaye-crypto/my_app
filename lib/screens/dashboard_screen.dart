@@ -4,12 +4,11 @@ import 'package:provider/provider.dart';
 import '../services/shop_service.dart';
 import 'defect_screen.dart';
 import 'login_screen.dart';
-import 'product_list_screen.dart';
 import 'product_form_screen.dart';
+import 'product_list_screen.dart';
 import 'report_screen.dart';
 import 'sales_screen.dart';
 
-/// Admin va ishchi uchun turli tugmalar — katta bosilish maydoni.
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -17,6 +16,7 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final shop = context.watch<ShopService>();
     final u = shop.user;
+    final colors = Theme.of(context).colorScheme;
     if (u == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -29,7 +29,7 @@ class DashboardScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(u.isAdmin ? 'Boshqaruv paneli' : 'Ishchi paneli'),
+        title: const Text('Taxta do‘koni'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -45,101 +45,212 @@ class DashboardScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
         children: [
-          Text('Salom, ${u.name}', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            u.isAdmin ? 'Administrator rejimi' : 'Sotuv rejimi',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 24),
-          _bigNav(
-            context,
-            label: 'Sotish',
-            icon: Icons.point_of_sale,
-            color: Colors.green.shade700,
-            onTap: () => Navigator.push<void>(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const SalesScreen()),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: colors.primary,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Salom, ${u.name}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 25,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  u.isAdmin ? 'Administrator paneli' : 'Ishchi sotuv paneli',
+                  style:
+                      const TextStyle(color: Color(0xFFFFEDE2), fontSize: 15),
+                ),
+              ],
             ),
           ),
-          _bigNav(
-            context,
-            label: 'Mahsulotlar',
-            icon: Icons.inventory_2_outlined,
-            onTap: () => Navigator.push<void>(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const ProductListScreen()),
-            ),
-          ),
-          _bigNav(
-            context,
-            label: 'Brak',
-            icon: Icons.report_problem_outlined,
-            color: Colors.orange.shade800,
-            onTap: () => Navigator.push<void>(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const DefectScreen()),
-            ),
-          ),
-          _bigNav(
-            context,
-            label: 'Bugungi hisobot',
-            icon: Icons.analytics_outlined,
-            color: Colors.indigo.shade700,
-            onTap: () => Navigator.push<void>(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const ReportScreen()),
-            ),
-          ),
-          if (u.isAdmin)
-            _bigNav(
-              context,
-              label: 'Yangi mahsulot',
-              icon: Icons.add_box_outlined,
-              onTap: () => Navigator.push<void>(
-                context,
-                MaterialPageRoute<void>(builder: (_) => const ProductFormScreen()),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _statCard(
+                  context,
+                  label: 'Mahsulot',
+                  value: '${shop.products.length}',
+                  icon: Icons.inventory_2_outlined,
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _statCard(
+                  context,
+                  label: 'Bugun',
+                  value: '${shop.salesForDay(DateTime.now()).length}',
+                  icon: Icons.receipt_long_outlined,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _statCard(
+                  context,
+                  label: 'Brak',
+                  value: '${shop.defects.length}',
+                  icon: Icons.report_problem_outlined,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Tezkor amallar',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
+          GridView.count(
+            crossAxisCount: MediaQuery.sizeOf(context).width > 720 ? 3 : 2,
+            childAspectRatio: 1.2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _navTile(
+                context,
+                label: 'Sotish',
+                icon: Icons.point_of_sale,
+                color: const Color(0xFF2F7D55),
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(builder: (_) => const SalesScreen()),
+                ),
+              ),
+              _navTile(
+                context,
+                label: 'Mahsulotlar',
+                icon: Icons.inventory_2_outlined,
+                color: colors.primary,
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(
+                      builder: (_) => const ProductListScreen()),
+                ),
+              ),
+              _navTile(
+                context,
+                label: 'Brak',
+                icon: Icons.report_problem_outlined,
+                color: const Color(0xFFB15D1F),
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(builder: (_) => const DefectScreen()),
+                ),
+              ),
+              _navTile(
+                context,
+                label: 'Hisobot',
+                icon: Icons.analytics_outlined,
+                color: const Color(0xFF315A8C),
+                onTap: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(builder: (_) => const ReportScreen()),
+                ),
+              ),
+              if (u.isAdmin)
+                _navTile(
+                  context,
+                  label: 'Yangi mahsulot',
+                  icon: Icons.add_box_outlined,
+                  color: const Color(0xFF6A4C93),
+                  onTap: () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute<void>(
+                        builder: (_) => const ProductFormScreen()),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _bigNav(
+  Widget _statCard(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 10),
+            Text(value,
+                style:
+                    const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navTile(
     BuildContext context, {
     required String label,
     required IconData icon,
     required VoidCallback onTap,
-    Color? color,
+    required Color color,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: color ?? Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
-            height: 72,
-            child: Row(
-              children: [
-                const SizedBox(width: 20),
-                Icon(icon, size: 32, color: Theme.of(context).colorScheme.onPrimaryContainer),
-                const SizedBox(width: 16),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFE8DED5)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
-            ),
+                child: Icon(icon, color: color),
+              ),
+              const Spacer(),
+              Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+            ],
           ),
         ),
       ),
