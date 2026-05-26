@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../models/product.dart';
 import '../services/shop_service.dart';
 
-/// Yangi mahsulot yoki mavjudini tahrirlash (faqat admin ochishi kerak).
 class ProductFormScreen extends StatefulWidget {
   const ProductFormScreen({super.key, this.product});
 
@@ -15,11 +14,15 @@ class ProductFormScreen extends StatefulWidget {
 }
 
 class _ProductFormScreenState extends State<ProductFormScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _size = TextEditingController();
   final _type = TextEditingController();
   final _price = TextEditingController();
   final _qty = TextEditingController();
+
+  static const _typePresets = ['Quruq', 'Ho‘l', 'Fanera', 'Brus', 'Reyka'];
+  static const _sizePresets = ['2x4', '2x6', '1.22x2.44', '50x50', '25x50'];
 
   @override
   void initState() {
@@ -47,15 +50,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   void _save() {
     final shop = context.read<ShopService>();
     if (!(shop.user?.isAdmin ?? false)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Faqat admin')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Faqat admin')));
       return;
     }
-    final price = double.tryParse(_price.text.replaceAll(' ', '')) ?? 0;
-    final qty = int.tryParse(_qty.text) ?? 0;
-    if (_name.text.trim().isEmpty || price <= 0 || qty < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Maydonlarni to‘ldiring')));
-      return;
-    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final price = _parseMoney(_price.text);
+    final qty = int.parse(_digitsOnly(_qty.text));
     final existing = widget.product;
     if (existing != null) {
       shop.updateProduct(
@@ -86,34 +88,144 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   Widget build(BuildContext context) {
     final edit = widget.product != null;
     return Scaffold(
-      appBar: AppBar(title: Text(edit ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      appBar: AppBar(
+          title: Text(edit ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot')),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      edit ? 'Mahsulot ma’lumotlari' : 'Yangi mahsulot',
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _name,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Nomi',
+                        hintText: 'Masalan: 2x4 taxta',
+                        prefixIcon: Icon(Icons.inventory_2_outlined),
+                      ),
+                      validator: (v) => (v ?? '').trim().isEmpty
+                          ? 'Mahsulot nomini kiriting'
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _size,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'O‘lcham',
+                        hintText: 'Masalan: 2x4',
+                        prefixIcon: Icon(Icons.straighten),
+                      ),
+                      validator: (v) => (v ?? '').trim().isEmpty
+                          ? 'O‘lchamni kiriting'
+                          : null,
+                    ),
+                    const SizedBox(height: 8),
+                    _presetChips(_sizePresets, _size),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _type,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Turi',
+                        hintText: 'Masalan: Quruq',
+                        prefixIcon: Icon(Icons.category_outlined),
+                      ),
+                      validator: (v) =>
+                          (v ?? '').trim().isEmpty ? 'Turini kiriting' : null,
+                    ),
+                    const SizedBox(height: 8),
+                    _presetChips(_typePresets, _type),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _price,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Narxi',
+                        suffixText: 'so‘m',
+                        prefixIcon: Icon(Icons.payments_outlined),
+                      ),
+                      validator: (v) {
+                        final price = _parseMoney(v ?? '');
+                        if (price <= 0) {
+                          return 'Narx 0 dan katta bo‘lishi kerak';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _qty,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Zaxira',
+                        suffixText: 'dona',
+                        prefixIcon: Icon(Icons.warehouse_outlined),
+                      ),
+                      validator: (v) {
+                        final digits = _digitsOnly(v ?? '');
+                        if (digits.isEmpty) {
+                          return 'Zaxira sonini kiriting';
+                        }
+                        if (int.parse(digits) < 0) {
+                          return 'Zaxira manfiy bo‘lmaydi';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _save,
+              icon: const Icon(Icons.save_outlined),
+              label:
+                  Text(edit ? 'O‘zgarishlarni saqlash' : 'Mahsulotni qo‘shish'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _presetChips(List<String> presets, TextEditingController controller) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
         children: [
-          TextField(controller: _name, decoration: const InputDecoration(labelText: 'Nomi', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
-          TextField(controller: _size, decoration: const InputDecoration(labelText: 'O‘lcham (masalan 2x4)', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
-          TextField(controller: _type, decoration: const InputDecoration(labelText: 'Turi', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _price,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Narxi (so‘m)', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _qty,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Zaxira (dona)', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _save,
-            child: const Text('Saqlash', style: TextStyle(fontSize: 18)),
-          ),
+          for (final preset in presets)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ActionChip(
+                label: Text(preset),
+                onPressed: () => setState(() => controller.text = preset),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  double _parseMoney(String value) {
+    return double.tryParse(_digitsOnly(value)) ?? 0;
+  }
+
+  String _digitsOnly(String value) {
+    return value.replaceAll(RegExp(r'[^0-9]'), '');
   }
 }
