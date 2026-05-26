@@ -24,6 +24,10 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>$(PRODUCT_COPYRIGHT)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Sotuvni ovoz orqali kiritish uchun mikrofon kerak.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Aytilgan sotuv matnini avtomatik aniqlash uchun speech recognition kerak.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

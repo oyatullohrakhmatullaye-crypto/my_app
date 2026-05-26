@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../services/shop_service.dart';
 
-/// Tez sotuv: mahsulot + soni + bir tugma. Ovoz — matn sifatida sinov.
+/// Tez sotuv: mahsulot + soni + bir tugma. Ovoz orqali sotuv ham bor.
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
 
@@ -13,6 +15,11 @@ class SalesScreen extends StatefulWidget {
 
 class _SalesScreenState extends State<SalesScreen> {
   final Map<String, int> _qty = {};
+  final SpeechToText _speech = SpeechToText();
+
+  bool _speechReady = false;
+  bool _speechBusy = false;
+  String _voiceText = '';
 
   int _qFor(String id, int maxStock) {
     final v = _qty[id] ?? 1;
@@ -27,45 +34,132 @@ class _SalesScreenState extends State<SalesScreen> {
     });
   }
 
+  Future<void> _ensureSpeechReady() async {
+    if (_speechReady) return;
+    _speechReady = await _speech.initialize(
+      onStatus: (status) {
+        if (!mounted) return;
+        setState(() => _speechBusy = status == 'listening');
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() => _speechBusy = false);
+      },
+    );
+  }
+
+  Future<void> _startListening(TextEditingController ctrl) async {
+    await _ensureSpeechReady();
+    if (!_speechReady) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content:
+                Text('Mikrofon ruxsati berilmadi yoki qurilma qo‘llamaydi')),
+      );
+      return;
+    }
+
+    setState(() => _speechBusy = true);
+    await _speech.listen(
+      listenOptions: SpeechListenOptions(
+        localeId: 'uz_UZ',
+        partialResults: true,
+        listenMode: ListenMode.confirmation,
+      ),
+      onResult: (SpeechRecognitionResult result) {
+        ctrl.text = result.recognizedWords;
+        ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
+        if (mounted) setState(() => _voiceText = result.recognizedWords);
+      },
+    );
+  }
+
+  Future<void> _stopListening() async {
+    await _speech.stop();
+    if (mounted) setState(() => _speechBusy = false);
+  }
+
+  Future<void> _sellFromVoice(String text) async {
+    final err = context.read<ShopService>().sellFromVoiceText(text);
+    if (!mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ovozdan sotildi: $text')),
+      );
+    }
+  }
+
   Future<void> _openVoiceDialog() async {
-    final ctrl = TextEditingController(text: '5 dona 2x4 taxta sotildi');
+    final ctrl = TextEditingController(text: _voiceText);
     try {
       final ok = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Ovoz (sinov)'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Haqiqiy ovozdan matnga keyinroq speech_to_text ulash mumkin. Hozir matnni tahrirlang.',
-                style: TextStyle(fontSize: 13),
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            Future<void> listen() async {
+              await _startListening(ctrl);
+              setDialogState(() {});
+            }
+
+            Future<void> stop() async {
+              await _stopListening();
+              setDialogState(() {});
+            }
+
+            return AlertDialog(
+              title: const Text('Ovoz orqali sotish'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _speechBusy
+                        ? 'Gapiring: masalan, “5 dona 2x4 taxta sotildi”.'
+                        : 'Mikrofonni bosing va sotuvni ayting.',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton.icon(
+                    onPressed: _speechBusy ? stop : listen,
+                    icon: Icon(_speechBusy ? Icons.stop : Icons.mic),
+                    label: Text(_speechBusy ? 'To‘xtatish' : 'Gapirish'),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: ctrl,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Tushgan matn',
+                      hintText: '5 dona 2x4 taxta sotildi',
+                      prefixIcon: Icon(Icons.record_voice_over_outlined),
+                    ),
+                    onChanged: (v) => _voiceText = v,
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ctrl,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: 'Masalan: 5 dona 2x4 taxta sotildi',
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Bekor'),
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Bekor')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sotish')),
-          ],
+                FilledButton.icon(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  icon: const Icon(Icons.point_of_sale),
+                  label: const Text('Sotish'),
+                ),
+              ],
+            );
+          },
         ),
       );
+      await _stopListening();
       if (ok == true && mounted) {
-        final err = context.read<ShopService>().sellFromVoiceText(ctrl.text);
-        if (err != null) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sotildi')));
-        }
+        _voiceText = ctrl.text.trim();
+        await _sellFromVoice(_voiceText);
       }
     } finally {
       ctrl.dispose();
@@ -83,7 +177,7 @@ class _SalesScreenState extends State<SalesScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.mic),
-            tooltip: 'Ovoz (sinov)',
+            tooltip: 'Ovoz orqali sotish',
             onPressed: _openVoiceDialog,
           ),
         ],
@@ -91,7 +185,7 @@ class _SalesScreenState extends State<SalesScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openVoiceDialog,
         icon: const Icon(Icons.mic),
-        label: const Text('Ovoz'),
+        label: const Text('Ovoz bilan sotish'),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(12),
@@ -114,8 +208,11 @@ class _SalesScreenState extends State<SalesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(p.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('${p.size} · ${p.price.toStringAsFixed(0)} so‘m · zaxira: $maxS'),
+                  Text(p.name,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                      '${p.size} · ${p.price.toStringAsFixed(0)} so‘m · zaxira: $maxS'),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -127,7 +224,8 @@ class _SalesScreenState extends State<SalesScreen> {
                         child: Text(
                           '$q dona',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                              fontSize: 22, fontWeight: FontWeight.w600),
                         ),
                       ),
                       IconButton.filledTonal(
@@ -138,14 +236,17 @@ class _SalesScreenState extends State<SalesScreen> {
                   ),
                   const SizedBox(height: 8),
                   FilledButton(
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52)),
                     onPressed: () {
                       final err = shop.sell(productId: p.id, quantity: q);
                       if (err != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(SnackBar(content: Text(err)));
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('${p.name} · $q dona sotildi')),
+                          SnackBar(
+                              content: Text('${p.name} · $q dona sotildi')),
                         );
                         setState(() => _qty[p.id] = 1);
                       }

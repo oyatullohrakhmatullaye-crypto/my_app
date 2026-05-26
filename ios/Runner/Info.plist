@@ -24,6 +24,10 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Sotuvni ovoz orqali kiritish uchun mikrofon kerak.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Aytilgan sotuv matnini avtomatik aniqlash uchun speech recognition kerak.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
