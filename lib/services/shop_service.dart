@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/app_user.dart';
@@ -5,11 +7,15 @@ import '../models/defect_record.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
 import '../models/user_role.dart';
+import 'shop_local_store.dart';
 import 'voice_sale_parser.dart';
 
-/// Barcha mahsulotlar, sotuvlar va brak — xotirada (mock).
-/// Keyinroq Hive/SQLite ga o‘tkazish oson.
 class ShopService extends ChangeNotifier {
+  ShopService({ShopLocalStore? localStore})
+      : _localStore = localStore ?? ShopLocalStore();
+
+  final ShopLocalStore _localStore;
+
   AppUser? _user;
   AppUser? get user => _user;
 
@@ -21,12 +27,38 @@ class ShopService extends ChangeNotifier {
   List<SaleRecord> get sales => List.unmodifiable(_sales);
   List<DefectRecord> get defects => List.unmodifiable(_defects);
 
-  ShopService() {
-    _seedProducts();
+  bool _isReady = false;
+  bool get isReady => _isReady;
+
+  int _idSeq = 0;
+
+  Future<void> init() async {
+    await _localStore.init();
+
+    final storedProducts = _localStore.loadProducts();
+    final storedSales = _localStore.loadSales();
+    final storedDefects = _localStore.loadDefects();
+
+    _products
+      ..clear()
+      ..addAll(storedProducts.isNotEmpty ? storedProducts : _defaultProducts());
+    _sales
+      ..clear()
+      ..addAll(storedSales);
+    _defects
+      ..clear()
+      ..addAll(storedDefects);
+
+    _isReady = true;
+    notifyListeners();
+
+    if (storedProducts.isEmpty) {
+      await _persistProducts();
+    }
   }
 
-  void _seedProducts() {
-    _products.addAll([
+  List<Product> _defaultProducts() {
+    return [
       Product(
         id: _genId(),
         name: '2x4 taxta',
@@ -51,16 +83,22 @@ class ShopService extends ChangeNotifier {
         price: 180000,
         quantity: 40,
       ),
-    ]);
+    ];
   }
-
-  int _idSeq = 0;
 
   String _genId() => 'id_${DateTime.now().microsecondsSinceEpoch}_${++_idSeq}';
 
-  /// Oddiy kirish: ism + rol (parol shart emas — demo).
+  Future<void> _persistProducts() => _localStore.saveProducts(_products);
+  Future<void> _persistSales() => _localStore.saveSales(_sales);
+  Future<void> _persistDefects() => _localStore.saveDefects(_defects);
+
   void login({required String name, required UserRole role}) {
-    _user = AppUser(name: name.trim().isEmpty ? (role == UserRole.admin ? 'Admin' : 'Ishchi') : name.trim(), role: role);
+    _user = AppUser(
+      name: name.trim().isEmpty
+          ? (role == UserRole.admin ? 'Admin' : 'Ishchi')
+          : name.trim(),
+      role: role,
+    );
     notifyListeners();
   }
 
@@ -72,6 +110,7 @@ class ShopService extends ChangeNotifier {
   void addProduct(Product p) {
     _products.add(p);
     notifyListeners();
+    unawaited(_persistProducts());
   }
 
   void updateProduct(Product updated) {
@@ -79,12 +118,14 @@ class ShopService extends ChangeNotifier {
     if (i >= 0) {
       _products[i] = updated;
       notifyListeners();
+      unawaited(_persistProducts());
     }
   }
 
   void deleteProduct(String id) {
     _products.removeWhere((e) => e.id == id);
     notifyListeners();
+    unawaited(_persistProducts());
   }
 
   Product? productById(String id) {
@@ -95,7 +136,6 @@ class ShopService extends ChangeNotifier {
     }
   }
 
-  /// Tez sotuv: zaxiradan ayirib, yozuv qo‘shadi.
   String? sell({
     required String productId,
     required int quantity,
@@ -105,7 +145,9 @@ class ShopService extends ChangeNotifier {
     final p = productById(productId);
     if (p == null) return 'Mahsulot topilmadi';
     if (quantity < 1) return 'Soni noto‘g‘ri';
-    if (p.quantity < quantity) return 'Zaxira yetarli emas (${p.quantity} dona)';
+    if (p.quantity < quantity) {
+      return 'Zaxira yetarli emas (${p.quantity} dona)';
+    }
 
     p.quantity -= quantity;
     _sales.add(SaleRecord(
@@ -118,17 +160,17 @@ class ShopService extends ChangeNotifier {
       at: DateTime.now(),
     ));
     notifyListeners();
+    unawaited(_persistProducts());
+    unawaited(_persistSales());
     return null;
   }
 
-  /// Ovoz matni → parser → sotuv.
   String? sellFromVoiceText(String text) {
     final parsed = VoiceSaleParser.parse(text, _products);
     if (parsed.product == null) return parsed.message;
     return sell(productId: parsed.product!.id, quantity: parsed.quantity);
   }
 
-  /// Ishchi brakni belgilaydi (zaxiradan kamayadi yoki alohida hisob — bu yerda zaxiradan ayiramiz).
   String? reportDefect({
     required String productId,
     required int quantity,
@@ -152,10 +194,11 @@ class ShopService extends ChangeNotifier {
       note: note,
     ));
     notifyListeners();
+    unawaited(_persistProducts());
+    unawaited(_persistDefects());
     return null;
   }
 
-  /// Admin brakni yana sotiladigan zaxiraga qaytaradi.
   String? recoverDefect(String defectId) {
     final u = _user;
     if (u == null || !u.isAdmin) return 'Faqat admin';
@@ -176,14 +219,17 @@ class ShopService extends ChangeNotifier {
     d.recovered = true;
     p.quantity += d.quantity;
     notifyListeners();
+    unawaited(_persistProducts());
+    unawaited(_persistDefects());
     return null;
   }
 
-  // --- Hisobotlar ---
-
   List<SaleRecord> salesForDay(DateTime day) {
     return _sales
-        .where((s) => s.at.year == day.year && s.at.month == day.month && s.at.day == day.day)
+        .where((s) =>
+            s.at.year == day.year &&
+            s.at.month == day.month &&
+            s.at.day == day.day)
         .toList();
   }
 
@@ -199,8 +245,6 @@ class ShopService extends ChangeNotifier {
     return map;
   }
 
-  /// 18:00 da avtomatik PDF — haqiqiy ilovada Workmanager/background ishlatiladi.
-  /// Bu yerda faqat "soat 18:00 bo‘lganda tayyor" degan tekshiruv (mock).
   bool get isPastReportHour {
     final now = DateTime.now();
     return now.hour >= 18;

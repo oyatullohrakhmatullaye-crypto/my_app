@@ -32,4 +32,26 @@ class Product {
       quantity: quantity ?? this.quantity,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'size': size,
+      'type': type,
+      'price': price,
+      'quantity': quantity,
+    };
+  }
+
+  factory Product.fromMap(Map<String, dynamic> map) {
+    return Product(
+      id: (map['id'] ?? '').toString(),
+      name: (map['name'] ?? '').toString(),
+      size: (map['size'] ?? '').toString(),
+      type: (map['type'] ?? '').toString(),
+      price: (map['price'] as num?)?.toDouble() ?? 0,
+      quantity: (map['quantity'] as num?)?.toInt() ?? 0,
+    );
+  }
 }

@@ -4,20 +4,24 @@ import 'package:provider/provider.dart';
 import 'screens/login_screen.dart';
 import 'services/shop_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const TaxtaApp());
+  final shopService = ShopService();
+  await shopService.init();
+  runApp(TaxtaApp(shopService: shopService));
 }
 
 /// Taxta do‘koni boshqaruvi — Provider orqali bitta ShopService.
 class TaxtaApp extends StatelessWidget {
-  const TaxtaApp({super.key});
+  const TaxtaApp({super.key, this.shopService});
+
+  final ShopService? shopService;
 
   @override
   Widget build(BuildContext context) {
     const seed = Color(0xFF7A4A35);
     return ChangeNotifierProvider<ShopService>(
-      create: (_) => ShopService(),
+      create: (_) => shopService ?? ShopService(),
       child: MaterialApp(
         title: 'Taxta do‘koni',
         debugShowCheckedModeBanner: false,
