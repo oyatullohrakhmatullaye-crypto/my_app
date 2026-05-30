@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/shop_service.dart';
+import 'customer_list_screen.dart';
 import 'defect_screen.dart';
 import 'login_screen.dart';
 import 'product_form_screen.dart';
@@ -24,6 +25,13 @@ class DashboardScreen extends StatelessWidget {
       );
     }
 
+    void openCustomers() {
+      Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const CustomerListScreen()),
+      );
+    }
+
     if (u == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -42,6 +50,11 @@ class DashboardScreen extends StatelessWidget {
             icon: const Icon(Icons.inventory_2_outlined),
             tooltip: 'Mahsulotlar',
             onPressed: openProducts,
+          ),
+          IconButton(
+            icon: const Icon(Icons.groups_outlined),
+            tooltip: 'Klientlar',
+            onPressed: openCustomers,
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -86,34 +99,40 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(
+          GridView.count(
+            crossAxisCount: MediaQuery.sizeOf(context).width > 720 ? 4 : 2,
+            childAspectRatio:
+                MediaQuery.sizeOf(context).width > 720 ? 1.65 : 2.25,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
-              Expanded(
-                child: _tapStatCard(
-                  context,
-                  label: 'Mahsulot',
-                  value: '${shop.products.length}',
-                  icon: Icons.inventory_2_outlined,
-                  onTap: openProducts,
-                ),
+              _tapStatCard(
+                context,
+                label: 'Mahsulot',
+                value: '${shop.products.length}',
+                icon: Icons.inventory_2_outlined,
+                onTap: openProducts,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _statCard(
-                  context,
-                  label: 'Bugun',
-                  value: '${shop.salesForDay(DateTime.now()).length}',
-                  icon: Icons.receipt_long_outlined,
-                ),
+              _tapStatCard(
+                context,
+                label: 'Klient',
+                value: '${shop.customers.length}',
+                icon: Icons.groups_outlined,
+                onTap: openCustomers,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _statCard(
-                  context,
-                  label: 'Brak',
-                  value: '${shop.defects.length}',
-                  icon: Icons.report_problem_outlined,
-                ),
+              _statCard(
+                context,
+                label: 'Bugun',
+                value: '${shop.salesForDay(DateTime.now()).length}',
+                icon: Icons.receipt_long_outlined,
+              ),
+              _statCard(
+                context,
+                label: 'Brak',
+                value: '${shop.defects.length}',
+                icon: Icons.report_problem_outlined,
               ),
             ],
           ),
@@ -145,6 +164,14 @@ class DashboardScreen extends StatelessWidget {
                 icon: Icons.inventory_2_outlined,
                 color: colors.primary,
                 onTap: openProducts,
+              ),
+              const SizedBox(height: 10),
+              _quickActionButton(
+                context,
+                label: 'Klientlar',
+                icon: Icons.groups_outlined,
+                color: const Color(0xFF6A4C93),
+                onTap: openCustomers,
               ),
               const SizedBox(height: 10),
               _quickActionButton(
@@ -197,15 +224,15 @@ class DashboardScreen extends StatelessWidget {
   }) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(9),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 10),
+            Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+            const SizedBox(height: 4),
             Text(value,
                 style:
-                    const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
             Text(
               label,
               maxLines: 1,

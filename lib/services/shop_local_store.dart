@@ -1,5 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../models/customer.dart';
 import '../models/defect_record.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
@@ -9,6 +10,7 @@ class ShopLocalStore {
   static const _kProducts = 'products';
   static const _kSales = 'sales';
   static const _kDefects = 'defects';
+  static const _kCustomers = 'customers';
 
   Future<void> init() async {
     await Hive.initFlutter();
@@ -46,6 +48,15 @@ class ShopLocalStore {
         .toList();
   }
 
+  List<Customer> loadCustomers() {
+    final raw = _box.get(_kCustomers) as List?;
+    if (raw == null) return [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Customer.fromMap(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
   Future<void> saveProducts(List<Product> items) async {
     await _box.put(
         _kProducts, items.map((e) => e.toMap()).toList(growable: false));
@@ -59,5 +70,10 @@ class ShopLocalStore {
   Future<void> saveDefects(List<DefectRecord> items) async {
     await _box.put(
         _kDefects, items.map((e) => e.toMap()).toList(growable: false));
+  }
+
+  Future<void> saveCustomers(List<Customer> items) async {
+    await _box.put(
+        _kCustomers, items.map((e) => e.toMap()).toList(growable: false));
   }
 }

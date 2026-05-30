@@ -63,10 +63,11 @@ class PdfReportService {
           pw.Text('Sotuvlar ro‘yxati',
               style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
           pw.TableHelper.fromTextArray(
-            headers: const ['Vaqt', 'Mahsulot', 'Soni', 'Summa'],
+            headers: const ['Vaqt', 'Klient', 'Mahsulot', 'Soni', 'Summa'],
             data: daySales
                 .map((s) => [
                       _dateFmt.format(s.at),
+                      s.customerName ?? 'Naqd',
                       s.productName,
                       '${s.quantity}',
                       s.total.toStringAsFixed(0),

@@ -28,6 +28,8 @@ void main() {
     expect(find.text('Tezkor amallar'), findsOneWidget);
     expect(find.text('Hisobot'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Hisobot'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Hisobot'));
     await tester.pumpAndSettle();
 

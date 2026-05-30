@@ -375,8 +375,11 @@ class ReportScreen extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.point_of_sale),
               title: Text(sale.productName),
-              subtitle:
-                  Text('${timeFmt.format(sale.at)} · ${sale.quantity} dona'),
+              subtitle: Text([
+                timeFmt.format(sale.at),
+                '${sale.quantity} dona',
+                sale.customerName ?? 'Naqd',
+              ].join(' · ')),
               trailing: Text(
                 _money(sale.total),
                 style: const TextStyle(fontWeight: FontWeight.w900),

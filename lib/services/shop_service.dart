@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/app_user.dart';
+import '../models/customer.dart';
 import '../models/defect_record.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
@@ -22,10 +23,12 @@ class ShopService extends ChangeNotifier {
   final List<Product> _products = [];
   final List<SaleRecord> _sales = [];
   final List<DefectRecord> _defects = [];
+  final List<Customer> _customers = [];
 
   List<Product> get products => List.unmodifiable(_products);
   List<SaleRecord> get sales => List.unmodifiable(_sales);
   List<DefectRecord> get defects => List.unmodifiable(_defects);
+  List<Customer> get customers => List.unmodifiable(_customers);
 
   bool _isReady = false;
   bool get isReady => _isReady;
@@ -38,6 +41,7 @@ class ShopService extends ChangeNotifier {
     final storedProducts = _localStore.loadProducts();
     final storedSales = _localStore.loadSales();
     final storedDefects = _localStore.loadDefects();
+    final storedCustomers = _localStore.loadCustomers();
 
     _products
       ..clear()
@@ -48,6 +52,9 @@ class ShopService extends ChangeNotifier {
     _defects
       ..clear()
       ..addAll(storedDefects);
+    _customers
+      ..clear()
+      ..addAll(storedCustomers);
 
     _isReady = true;
     notifyListeners();
@@ -91,6 +98,7 @@ class ShopService extends ChangeNotifier {
   Future<void> _persistProducts() => _localStore.saveProducts(_products);
   Future<void> _persistSales() => _localStore.saveSales(_sales);
   Future<void> _persistDefects() => _localStore.saveDefects(_defects);
+  Future<void> _persistCustomers() => _localStore.saveCustomers(_customers);
 
   void login({required String name, required UserRole role}) {
     _user = AppUser(
@@ -128,6 +136,36 @@ class ShopService extends ChangeNotifier {
     unawaited(_persistProducts());
   }
 
+  void addCustomer(Customer customer) {
+    _customers.add(customer);
+    notifyListeners();
+    unawaited(_persistCustomers());
+  }
+
+  void updateCustomer(Customer updated) {
+    final i = _customers.indexWhere((e) => e.id == updated.id);
+    if (i >= 0) {
+      _customers[i] = updated;
+      notifyListeners();
+      unawaited(_persistCustomers());
+    }
+  }
+
+  void deleteCustomer(String id) {
+    _customers.removeWhere((e) => e.id == id);
+    notifyListeners();
+    unawaited(_persistCustomers());
+  }
+
+  Customer? customerById(String? id) {
+    if (id == null) return null;
+    try {
+      return _customers.firstWhere((e) => e.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Product? productById(String id) {
     try {
       return _products.firstWhere((e) => e.id == id);
@@ -139,6 +177,7 @@ class ShopService extends ChangeNotifier {
   String? sell({
     required String productId,
     required int quantity,
+    String? customerId,
   }) {
     final u = _user;
     if (u == null) return 'Avval tizimga kiring';
@@ -148,6 +187,7 @@ class ShopService extends ChangeNotifier {
     if (p.quantity < quantity) {
       return 'Zaxira yetarli emas (${p.quantity} dona)';
     }
+    final customer = customerById(customerId);
 
     p.quantity -= quantity;
     _sales.add(SaleRecord(
@@ -158,6 +198,8 @@ class ShopService extends ChangeNotifier {
       unitPrice: p.price,
       workerName: u.name,
       at: DateTime.now(),
+      customerId: customer?.id,
+      customerName: customer?.name,
     ));
     notifyListeners();
     unawaited(_persistProducts());
@@ -165,10 +207,14 @@ class ShopService extends ChangeNotifier {
     return null;
   }
 
-  String? sellFromVoiceText(String text) {
+  String? sellFromVoiceText(String text, {String? customerId}) {
     final parsed = VoiceSaleParser.parse(text, _products);
     if (parsed.product == null) return parsed.message;
-    return sell(productId: parsed.product!.id, quantity: parsed.quantity);
+    return sell(
+      productId: parsed.product!.id,
+      quantity: parsed.quantity,
+      customerId: customerId,
+    );
   }
 
   String? reportDefect({
@@ -231,6 +277,15 @@ class ShopService extends ChangeNotifier {
             s.at.month == day.month &&
             s.at.day == day.day)
         .toList();
+  }
+
+  List<SaleRecord> salesForCustomer(String customerId) {
+    return _sales.where((s) => s.customerId == customerId).toList()
+      ..sort((a, b) => b.at.compareTo(a.at));
+  }
+
+  double totalForCustomer(String customerId) {
+    return salesForCustomer(customerId).fold<double>(0, (a, s) => a + s.total);
   }
 
   double totalForDay(DateTime day) {

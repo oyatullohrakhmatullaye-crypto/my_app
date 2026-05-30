@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import '../models/product.dart';
 import '../services/shop_service.dart';
 
 /// Tez sotuv: mahsulot + soni + bir tugma. Ovoz orqali sotuv ham bor.
@@ -25,6 +26,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
   bool _speechReady = false;
   String _voiceText = '';
+  String? _selectedCustomerId;
 
   @override
   void dispose() {
@@ -157,7 +159,9 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   Future<void> _sellFromVoice(String text) async {
-    final err = context.read<ShopService>().sellFromVoiceText(text);
+    final err = context
+        .read<ShopService>()
+        .sellFromVoiceText(text, customerId: _selectedCustomerId);
     if (!mounted) return;
     if (err != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
@@ -343,6 +347,7 @@ class _SalesScreenState extends State<SalesScreen> {
   Widget build(BuildContext context) {
     final shop = context.watch<ShopService>();
     final products = shop.products;
+    final customers = shop.customers;
 
     return Scaffold(
       appBar: AppBar(
@@ -360,77 +365,109 @@ class _SalesScreenState extends State<SalesScreen> {
         icon: const Icon(Icons.mic),
         label: const Text('Ovoz bilan sotish'),
       ),
-      body: ListView.builder(
+      body: ListView(
         padding: const EdgeInsets.all(12),
-        itemCount: products.length,
-        itemBuilder: (context, i) {
-          final p = products[i];
-          final maxS = p.quantity;
-          final q = _qFor(p.id, maxS);
-          if (maxS == 0) {
-            return Card(
-              child: ListTile(
-                title: Text(p.name),
-                subtitle: const Text('Zaxira tugagan'),
-              ),
-            );
-          }
-          return Card(
+        children: [
+          Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(p.name,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text(
-                      '${p.size} · ${p.price.toStringAsFixed(0)} so‘m · zaxira: $maxS'),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      IconButton.filledTonal(
-                        onPressed: q > 1 ? () => _setQ(p.id, maxS, -1) : null,
-                        icon: const Icon(Icons.remove),
-                      ),
-                      Expanded(
-                        child: Text(
-                          '$q dona',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      IconButton.filledTonal(
-                        onPressed: q < maxS ? () => _setQ(p.id, maxS, 1) : null,
-                        icon: const Icon(Icons.add),
-                      ),
-                    ],
+              child: DropdownButtonFormField<String?>(
+                initialValue: _selectedCustomerId,
+                decoration: const InputDecoration(
+                  labelText: 'Klient',
+                  prefixIcon: Icon(Icons.groups_outlined),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Naqd klient tanlanmagan'),
                   ),
-                  const SizedBox(height: 8),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52)),
-                    onPressed: () {
-                      final err = shop.sell(productId: p.id, quantity: q);
-                      if (err != null) {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(SnackBar(content: Text(err)));
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('${p.name} · $q dona sotildi')),
-                        );
-                        setState(() => _qty[p.id] = 1);
-                      }
-                    },
-                    child: const Text('SOTISH', style: TextStyle(fontSize: 18)),
-                  ),
+                  for (final customer in customers)
+                    DropdownMenuItem<String?>(
+                      value: customer.id,
+                      child: Text(customer.name),
+                    ),
                 ],
+                onChanged: (v) => setState(() => _selectedCustomerId = v),
               ),
             ),
-          );
-        },
+          ),
+          const SizedBox(height: 8),
+          for (final p in products) _productSaleCard(context, shop, p),
+        ],
+      ),
+    );
+  }
+
+  Widget _productSaleCard(BuildContext context, ShopService shop, Product p) {
+    final maxS = p.quantity;
+    final q = _qFor(p.id, maxS);
+    if (maxS == 0) {
+      return Card(
+        child: ListTile(
+          title: Text(p.name),
+          subtitle: const Text('Zaxira tugagan'),
+        ),
+      );
+    }
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(p.name,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+                '${p.size} · ${p.price.toStringAsFixed(0)} so‘m · zaxira: $maxS'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                IconButton.filledTonal(
+                  onPressed: q > 1 ? () => _setQ(p.id, maxS, -1) : null,
+                  icon: const Icon(Icons.remove),
+                ),
+                Expanded(
+                  child: Text(
+                    '$q dona',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton.filledTonal(
+                  onPressed: q < maxS ? () => _setQ(p.id, maxS, 1) : null,
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52)),
+              onPressed: () {
+                final err = shop.sell(
+                  productId: p.id,
+                  quantity: q,
+                  customerId: _selectedCustomerId,
+                );
+                if (err != null) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text(err)));
+                } else {
+                  final customer = shop.customerById(_selectedCustomerId);
+                  final who = customer == null ? '' : ' · ${customer.name}';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${p.name} · $q dona sotildi$who')),
+                  );
+                  setState(() => _qty[p.id] = 1);
+                }
+              },
+              child: const Text('SOTISH', style: TextStyle(fontSize: 18)),
+            ),
+          ],
+        ),
       ),
     );
   }

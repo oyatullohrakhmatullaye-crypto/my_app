@@ -8,6 +8,8 @@ class SaleRecord {
     required this.unitPrice,
     required this.workerName,
     required this.at,
+    this.customerId,
+    this.customerName,
   });
 
   final String id;
@@ -17,6 +19,8 @@ class SaleRecord {
   final double unitPrice;
   final String workerName;
   final DateTime at;
+  final String? customerId;
+  final String? customerName;
 
   double get total => quantity * unitPrice;
 
@@ -29,6 +33,8 @@ class SaleRecord {
       'unitPrice': unitPrice,
       'workerName': workerName,
       'at': at.toIso8601String(),
+      'customerId': customerId,
+      'customerName': customerName,
     };
   }
 
@@ -41,6 +47,8 @@ class SaleRecord {
       unitPrice: (map['unitPrice'] as num?)?.toDouble() ?? 0,
       workerName: (map['workerName'] ?? '').toString(),
       at: DateTime.tryParse((map['at'] ?? '').toString()) ?? DateTime.now(),
+      customerId: map['customerId']?.toString(),
+      customerName: map['customerName']?.toString(),
     );
   }
 }
