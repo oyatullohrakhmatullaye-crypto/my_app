@@ -32,15 +32,35 @@ class _DebtListScreenState extends State<DebtListScreen> {
     final dueSoon = shop.debtorCustomers.where(_isDueSoon).length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Qarzdorlik')),
+      appBar: AppBar(
+        title: const Text('Qarzdorlik'),
+        actions: [
+          IconButton(
+            tooltip: 'Qarzdor qo‘shish',
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            onPressed: () => _showAddDebtorSheet(context),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddDebtorSheet(context),
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text('Qarzdor'),
+      ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
         children: [
           _summary(context,
               totalDebt: shop.totalDebt,
               debtorCount: shop.debtorCustomers.length,
               overdue: overdue,
               dueSoon: dueSoon),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => _showAddDebtorSheet(context),
+            icon: const Icon(Icons.person_add_alt_1),
+            label: const Text('Qarzdor qo‘shish'),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _query,
@@ -303,6 +323,184 @@ class _DebtListScreenState extends State<DebtListScreen> {
     }
   }
 
+  Future<void> _showAddDebtorSheet(BuildContext context) async {
+    final shop = context.read<ShopService>();
+    final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    var existingMode = shop.customers.isNotEmpty;
+    var selectedCustomerId =
+        shop.customers.isEmpty ? null : shop.customers.first.id;
+    var dueDate = DateTime.now().add(const Duration(days: 7));
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            Future<void> pickDueDate() async {
+              final picked = await showDatePicker(
+                context: sheetContext,
+                initialDate: dueDate,
+                firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+              );
+              if (picked != null) setSheetState(() => dueDate = picked);
+            }
+
+            void save() {
+              final amount = double.tryParse(amountCtrl.text
+                      .replaceAll(' ', '')
+                      .replaceAll(',', '.')) ??
+                  0;
+              final service = sheetContext.read<ShopService>();
+              final err = existingMode
+                  ? service.addDebtToCustomer(
+                      customerId: selectedCustomerId ?? '',
+                      amount: amount,
+                      dueDate: dueDate,
+                      note: noteCtrl.text,
+                    )
+                  : service.createDebtor(
+                      name: nameCtrl.text,
+                      phone: phoneCtrl.text,
+                      amount: amount,
+                      dueDate: dueDate,
+                      note: noteCtrl.text,
+                    );
+              if (err != null) {
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(SnackBar(content: Text(err)));
+                return;
+              }
+              Navigator.pop(sheetContext);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Qarzdorlik qo‘shildi')),
+              );
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+              ),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  const Text('Qarzdor qo‘shish',
+                      style:
+                          TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 12),
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(
+                        value: true,
+                        icon: Icon(Icons.groups_outlined),
+                        label: Text('Mavjud'),
+                      ),
+                      ButtonSegment(
+                        value: false,
+                        icon: Icon(Icons.person_add_alt_1_outlined),
+                        label: Text('Yangi'),
+                      ),
+                    ],
+                    selected: {existingMode},
+                    onSelectionChanged: (value) => setSheetState(() =>
+                        existingMode =
+                            value.first && shop.customers.isNotEmpty),
+                  ),
+                  const SizedBox(height: 12),
+                  if (existingMode && shop.customers.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCustomerId,
+                      decoration: const InputDecoration(
+                        labelText: 'Klient',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      items: [
+                        for (final customer in shop.customers)
+                          DropdownMenuItem(
+                            value: customer.id,
+                            child: Text(customer.name),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          setSheetState(() => selectedCustomerId = value),
+                    )
+                  else ...[
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Klient ismi yoki firma',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: phoneCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Telefon',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                      ),
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Qarz summasi',
+                      hintText: 'Masalan: 500000',
+                      prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: pickDueDate,
+                    icon: const Icon(Icons.event_available_outlined),
+                    label: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Qaytarish kuni: ${_date.format(dueDate)}'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteCtrl,
+                    minLines: 2,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Izoh',
+                      hintText: 'Nima uchun qarz, kelishuv, eslatma...',
+                      prefixIcon: Icon(Icons.notes_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: save,
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Qarzdorlikni saqlash'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      nameCtrl.dispose();
+      phoneCtrl.dispose();
+      amountCtrl.dispose();
+      noteCtrl.dispose();
+    }
+  }
+
   Widget _emptyState(BuildContext context) {
     return Card(
       child: Padding(
@@ -316,9 +514,15 @@ class _DebtListScreenState extends State<DebtListScreen> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
             Text(
-              'Qarzga sotuv yoki klient kartasiga qarz qo‘shilganda bu yerda chiqadi.',
+              'Qarzga sotuv yoki “Qarzdor qo‘shish” orqali qarz kiritilganda bu yerda chiqadi.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Theme.of(context).colorScheme.outline),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: () => _showAddDebtorSheet(context),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('Qarzdor qo‘shish'),
             ),
           ],
         ),

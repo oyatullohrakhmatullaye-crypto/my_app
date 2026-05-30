@@ -280,6 +280,61 @@ class ShopService extends ChangeNotifier {
     return null;
   }
 
+  String? addDebtToCustomer({
+    required String customerId,
+    required double amount,
+    required DateTime dueDate,
+    String? note,
+  }) {
+    final u = _user;
+    if (u == null) return 'Avval tizimga kiring';
+    final customer = customerById(customerId);
+    if (customer == null) return 'Klient topilmadi';
+    if (amount <= 0) return 'Qarz summasi noto‘g‘ri';
+
+    customer.debt += amount;
+    customer.debtDueDate = dueDate;
+    final cleanNote = note?.trim();
+    if (cleanNote != null && cleanNote.isNotEmpty) {
+      customer.note = customer.note.trim().isEmpty
+          ? cleanNote
+          : '${customer.note.trim()}\nQarz: $cleanNote';
+    }
+    notifyListeners();
+    unawaited(_persistCustomers());
+    return null;
+  }
+
+  String? createDebtor({
+    required String name,
+    required String phone,
+    required double amount,
+    required DateTime dueDate,
+    String? note,
+  }) {
+    final u = _user;
+    if (u == null) return 'Avval tizimga kiring';
+    if (name.trim().isEmpty) return 'Klient nomini kiriting';
+    if (amount <= 0) return 'Qarz summasi noto‘g‘ri';
+
+    final customer = Customer(
+      id: _genId(),
+      name: name.trim(),
+      phone: phone.trim(),
+      address: '',
+      type: 'Qarzdor',
+      note: note?.trim() ?? '',
+      debt: amount,
+      creditLimit: 0,
+      createdAt: DateTime.now(),
+      debtDueDate: dueDate,
+    );
+    _customers.add(customer);
+    notifyListeners();
+    unawaited(_persistCustomers());
+    return null;
+  }
+
   String? reportDefect({
     required String productId,
     required int quantity,
