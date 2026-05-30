@@ -17,6 +17,13 @@ class DashboardScreen extends StatelessWidget {
     final shop = context.watch<ShopService>();
     final u = shop.user;
     final colors = Theme.of(context).colorScheme;
+    void openProducts() {
+      Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const ProductListScreen()),
+      );
+    }
+
     if (u == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -31,6 +38,11 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Taxta do‘koni'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.inventory_2_outlined),
+            tooltip: 'Mahsulotlar',
+            onPressed: openProducts,
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Chiqish',
@@ -77,11 +89,12 @@ class DashboardScreen extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _statCard(
+                child: _tapStatCard(
                   context,
                   label: 'Mahsulot',
                   value: '${shop.products.length}',
                   icon: Icons.inventory_2_outlined,
+                  onTap: openProducts,
                 ),
               ),
               const SizedBox(width: 10),
@@ -113,15 +126,9 @@ class DashboardScreen extends StatelessWidget {
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 10),
-          GridView.count(
-            crossAxisCount: MediaQuery.sizeOf(context).width > 720 ? 3 : 2,
-            childAspectRatio: 1.2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+          Column(
             children: [
-              _navTile(
+              _quickActionButton(
                 context,
                 label: 'Sotish',
                 icon: Icons.point_of_sale,
@@ -131,18 +138,16 @@ class DashboardScreen extends StatelessWidget {
                   MaterialPageRoute<void>(builder: (_) => const SalesScreen()),
                 ),
               ),
-              _navTile(
+              const SizedBox(height: 10),
+              _quickActionButton(
                 context,
                 label: 'Mahsulotlar',
                 icon: Icons.inventory_2_outlined,
                 color: colors.primary,
-                onTap: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute<void>(
-                      builder: (_) => const ProductListScreen()),
-                ),
+                onTap: openProducts,
               ),
-              _navTile(
+              const SizedBox(height: 10),
+              _quickActionButton(
                 context,
                 label: 'Brak',
                 icon: Icons.report_problem_outlined,
@@ -152,7 +157,8 @@ class DashboardScreen extends StatelessWidget {
                   MaterialPageRoute<void>(builder: (_) => const DefectScreen()),
                 ),
               ),
-              _navTile(
+              const SizedBox(height: 10),
+              _quickActionButton(
                 context,
                 label: 'Hisobot',
                 icon: Icons.analytics_outlined,
@@ -162,8 +168,9 @@ class DashboardScreen extends StatelessWidget {
                   MaterialPageRoute<void>(builder: (_) => const ReportScreen()),
                 ),
               ),
-              if (u.isAdmin)
-                _navTile(
+              if (u.isAdmin) ...[
+                const SizedBox(height: 10),
+                _quickActionButton(
                   context,
                   label: 'Yangi mahsulot',
                   icon: Icons.add_box_outlined,
@@ -174,6 +181,7 @@ class DashboardScreen extends StatelessWidget {
                         builder: (_) => const ProductFormScreen()),
                   ),
                 ),
+              ],
             ],
           ),
         ],
@@ -211,47 +219,53 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _navTile(
+  Widget _tapStatCard(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: _statCard(
+          context,
+          label: label,
+          value: value,
+          icon: icon,
+        ),
+      ),
+    );
+  }
+
+  Widget _quickActionButton(
     BuildContext context, {
     required String label,
     required IconData icon,
     required VoidCallback onTap,
     required Color color,
   }) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFE8DED5)),
-            borderRadius: BorderRadius.circular(8),
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.tonalIcon(
+        onPressed: onTap,
+        icon: Icon(icon, color: color),
+        label: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color),
-              ),
-              const Spacer(),
-              Text(
-                label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style:
-                    const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-              ),
-            ],
-          ),
+        ),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(56),
+          backgroundColor: color.withValues(alpha: 0.12),
+          foregroundColor: const Color(0xFF211A16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          side: const BorderSide(color: Color(0xFFE8DED5)),
         ),
       ),
     );
