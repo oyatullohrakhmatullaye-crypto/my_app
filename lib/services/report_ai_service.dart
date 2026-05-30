@@ -28,12 +28,33 @@ class ProductSaleSummary {
   final double total;
 }
 
+class WorkerPerformance {
+  const WorkerPerformance({
+    required this.name,
+    required this.total,
+    required this.checks,
+    required this.quantity,
+    required this.averageCheck,
+    required this.share,
+    required this.rank,
+  });
+
+  final String name;
+  final double total;
+  final int checks;
+  final int quantity;
+  final double averageCheck;
+  final double share;
+  final int rank;
+}
+
 class DailyReportSummary {
   const DailyReportSummary({
     required this.sales,
     required this.defects,
     required this.products,
     required this.workerTotals,
+    required this.workerPerformance,
     required this.totalRevenue,
     required this.soldQuantity,
     required this.averageCheck,
@@ -48,6 +69,7 @@ class DailyReportSummary {
   final List<DefectRecord> defects;
   final List<Product> products;
   final Map<String, double> workerTotals;
+  final List<WorkerPerformance> workerPerformance;
   final double totalRevenue;
   final int soldQuantity;
   final double averageCheck;
@@ -102,12 +124,14 @@ class ReportAiService {
             quantity: productSales.first.quantity,
             total: productSales.first.total,
           );
+    final workerPerformance = _buildWorkerPerformance(sales, totalRevenue);
 
     return DailyReportSummary(
       sales: sales,
       defects: defects,
       products: products,
       workerTotals: workerTotals,
+      workerPerformance: workerPerformance,
       totalRevenue: totalRevenue,
       soldQuantity: soldQuantity,
       averageCheck: sales.isEmpty ? 0 : totalRevenue / sales.length,
@@ -181,7 +205,76 @@ class ReportAiService {
       ));
     }
 
+    final workers = summary.workerPerformance;
+    if (workers.length > 1) {
+      final leader = workers.first;
+      final last = workers.last;
+      if (leader.share >= 0.7) {
+        advice.add(ReportAdvice(
+          title: 'Sotuv bir odamga bog‘lanib qolgan',
+          body:
+              '${leader.name} bugungi tushumning ${(leader.share * 100).round()}% qismini qildi. Qolgan sotuvchilarga ham aniq vazifa va mahsulot tavsiyasi bering.',
+          level: ReportAdviceLevel.warning,
+        ));
+      } else {
+        advice.add(ReportAdvice(
+          title: 'Sotuvchilar balansi yaxshi',
+          body:
+              'Lider ${leader.name}, lekin tushum bir kishiga haddan tashqari bog‘lanmagan. Jamoa ritmini shu holatda ushlab turing.',
+          level: ReportAdviceLevel.good,
+        ));
+      }
+
+      if (last.checks <= 1 && last.total < leader.total * 0.35) {
+        advice.add(ReportAdvice(
+          title: 'Kuchsiz nuqtani ko‘taring',
+          body:
+              '${last.name}da chek kam. Unga eng yuradigan mahsulot va tayyor mijoz gaplashuv sxemasini bering.',
+          level: ReportAdviceLevel.info,
+        ));
+      }
+    } else if (workers.length == 1) {
+      advice.add(ReportAdvice(
+        title: 'Sotuv bitta xodimda',
+        body:
+            '${workers.first.name} bugun yagona sotuvchi sifatida ishlayapti. Navbat yoki ikkinchi sotuvchini qo‘shish zarur bo‘lsa, hoziroq ko‘rinadi.',
+        level: ReportAdviceLevel.info,
+      ));
+    }
+
     return advice;
+  }
+
+  static List<WorkerPerformance> _buildWorkerPerformance(
+    List<SaleRecord> sales,
+    double totalRevenue,
+  ) {
+    final workerMap = <String, _MutableWorkerPerformance>{};
+    for (final sale in sales) {
+      final current = workerMap.putIfAbsent(
+        sale.workerName,
+        () => _MutableWorkerPerformance(sale.workerName),
+      );
+      current.checks += 1;
+      current.quantity += sale.quantity;
+      current.total += sale.total;
+    }
+
+    final rows = workerMap.values.toList()
+      ..sort((a, b) => b.total.compareTo(a.total));
+    return [
+      for (var i = 0; i < rows.length; i++)
+        WorkerPerformance(
+          name: rows[i].name,
+          total: rows[i].total,
+          checks: rows[i].checks,
+          quantity: rows[i].quantity,
+          averageCheck:
+              rows[i].checks == 0 ? 0 : rows[i].total / rows[i].checks,
+          share: totalRevenue <= 0 ? 0 : rows[i].total / totalRevenue,
+          rank: i + 1,
+        ),
+    ];
   }
 
   static double _priceForProduct(List<Product> products, String id) {
@@ -200,6 +293,15 @@ class _MutableProductSale {
   _MutableProductSale(this.name);
 
   final String name;
+  int quantity = 0;
+  double total = 0;
+}
+
+class _MutableWorkerPerformance {
+  _MutableWorkerPerformance(this.name);
+
+  final String name;
+  int checks = 0;
   int quantity = 0;
   double total = 0;
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../services/report_ai_service.dart';
 import '../services/shop_service.dart';
 import 'customer_list_screen.dart';
 import 'defect_screen.dart';
@@ -19,6 +21,14 @@ class DashboardScreen extends StatelessWidget {
     final shop = context.watch<ShopService>();
     final u = shop.user;
     final colors = Theme.of(context).colorScheme;
+    final today = DateTime.now();
+    final dailySummary = ReportAiService.buildSummary(
+      day: today,
+      allSales: shop.sales,
+      allDefects: shop.defects,
+      products: shop.products,
+      workerTotals: shop.workerTotalsForDay(today),
+    );
     void openProducts() {
       Navigator.push<void>(
         context,
@@ -145,7 +155,7 @@ class DashboardScreen extends StatelessWidget {
               _statCard(
                 context,
                 label: 'Bugun',
-                value: '${shop.salesForDay(DateTime.now()).length}',
+                value: '${dailySummary.checkCount}',
                 icon: Icons.receipt_long_outlined,
               ),
               _statCard(
@@ -157,6 +167,10 @@ class DashboardScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
+          if (u.isAdmin) ...[
+            _sellerKpiPanel(context, dailySummary),
+            const SizedBox(height: 18),
+          ],
           Text(
             'Tezkor amallar',
             style: Theme.of(context)
@@ -241,6 +255,198 @@ class DashboardScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _sellerKpiPanel(BuildContext context, DailyReportSummary summary) {
+    final colors = Theme.of(context).colorScheme;
+    final workers = summary.workerPerformance;
+    final insight = _sellerInsight(summary);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.leaderboard_outlined, color: colors.primary),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Sotuvchilar KPI',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                Text(
+                  _money(summary.totalRevenue),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Bugungi sotuvlar: ${summary.checkCount} chek · ${summary.soldQuantity} dona',
+              style: TextStyle(color: colors.outline),
+            ),
+            const SizedBox(height: 12),
+            _sellerInsightBox(context, insight),
+            const SizedBox(height: 12),
+            if (workers.isEmpty)
+              Text(
+                'Hali sotuvchi bo‘yicha sotuv yo‘q. Har bir ishchi o‘z ismi bilan kirib sotuv qilsa, boshliq bu yerda natijani ko‘radi.',
+                style: TextStyle(color: colors.outline),
+              )
+            else
+              Column(
+                children: [
+                  for (final worker in workers.take(5))
+                    _sellerKpiRow(context, worker, workers.first.total),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sellerKpiRow(
+    BuildContext context,
+    WorkerPerformance worker,
+    double topTotal,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final progress =
+        topTotal <= 0 ? 0.0 : (worker.total / topTotal).clamp(0, 1).toDouble();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 17,
+                backgroundColor: colors.primary.withValues(alpha: 0.12),
+                child: Text(
+                  '${worker.rank}',
+                  style: TextStyle(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(worker.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text(
+                      '${worker.checks} chek · ${worker.quantity} dona · o‘rtacha ${_money(worker.averageCheck)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: colors.outline, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(_money(worker.total),
+                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                  Text('${(worker.share * 100).round()}%',
+                      style: TextStyle(color: colors.outline, fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: colors.surfaceContainerHighest,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sellerInsightBox(BuildContext context, _SellerInsight insight) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: insight.color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: insight.color, width: 4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(insight.icon, color: insight.color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(insight.title,
+                    style: TextStyle(
+                        color: insight.color, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 3),
+                Text(insight.body),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  _SellerInsight _sellerInsight(DailyReportSummary summary) {
+    final workers = summary.workerPerformance;
+    if (workers.isEmpty) {
+      return const _SellerInsight(
+        title: 'AI KPI kutyapti',
+        body:
+            'Birinchi sotuv kiritilishi bilan sotuvchi reytingi va boshqaruv signali shu yerda chiqadi.',
+        icon: Icons.auto_awesome,
+        color: Color(0xFF315A8C),
+      );
+    }
+    final leader = workers.first;
+    if (workers.length == 1) {
+      return _SellerInsight(
+        title: '${leader.name} yakka sotuvda',
+        body:
+            'Bugun barcha tushum bitta sotuvchida. Ikkinchi sotuvchi ishga tushsa, taqqoslash va vazifa berish osonlashadi.',
+        icon: Icons.insights_outlined,
+        color: const Color(0xFF315A8C),
+      );
+    }
+    if (leader.share >= 0.7) {
+      return _SellerInsight(
+        title: 'Sotuv liderga juda bog‘langan',
+        body:
+            '${leader.name} tushumning ${(leader.share * 100).round()}% qismini qildi. Qolgan sotuvchilarga eng yuradigan mahsulot bo‘yicha aniq vazifa bering.',
+        icon: Icons.warning_amber_outlined,
+        color: const Color(0xFFB15D1F),
+      );
+    }
+    return _SellerInsight(
+      title: 'Jamoa ritmi sog‘lom',
+      body:
+          'Lider ${leader.name}, ammo tushum jamoa bo‘yicha bo‘linyapti. Shu balansni ushlab, pastdagi sotuvchiga kichik kunlik target bering.',
+      icon: Icons.check_circle_outline,
+      color: const Color(0xFF2F7D55),
     );
   }
 
@@ -331,4 +537,23 @@ class DashboardScreen extends StatelessWidget {
     if (value >= 1000) return '${(value / 1000).toStringAsFixed(0)} ming';
     return value.toStringAsFixed(0);
   }
+
+  String _money(double value) {
+    final text = NumberFormat.decimalPattern().format(value.round());
+    return '$text so‘m';
+  }
+}
+
+class _SellerInsight {
+  const _SellerInsight({
+    required this.title,
+    required this.body,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final String body;
+  final IconData icon;
+  final Color color;
 }

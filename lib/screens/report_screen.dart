@@ -304,21 +304,33 @@ class ReportScreen extends StatelessWidget {
   }
 
   Widget _workerTotals(BuildContext context, DailyReportSummary summary) {
-    if (summary.workerTotals.isEmpty) {
+    if (summary.workerPerformance.isEmpty) {
       return _emptyText(context, 'Hozircha ishchi bo‘yicha sotuv yo‘q.');
     }
-    final entries = summary.workerTotals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
     return Column(
       children: [
-        for (final entry in entries)
+        for (final worker in summary.workerPerformance)
           Card(
             child: ListTile(
-              leading: const Icon(Icons.person_outline),
-              title: Text(entry.key),
-              trailing: Text(
-                _money(entry.value),
-                style: const TextStyle(fontWeight: FontWeight.w900),
+              leading: CircleAvatar(
+                child: Text('#${worker.rank}',
+                    style: const TextStyle(fontWeight: FontWeight.w900)),
+              ),
+              title: Text(worker.name),
+              subtitle: Text(
+                '${worker.checks} chek · ${worker.quantity} dona · o‘rtacha ${_money(worker.averageCheck)}',
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(_money(worker.total),
+                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                  Text('${(worker.share * 100).round()}%',
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.outline,
+                          fontSize: 12)),
+                ],
               ),
             ),
           ),
