@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/product.dart';
 import '../models/sale_record.dart';
+import 'report_ai_service.dart';
 
 /// Kunlik hisobot PDF — chop etish yoki ulashish uchun.
 class PdfReportService {
@@ -15,6 +16,7 @@ class PdfReportService {
     required List<Product> products,
     required Map<String, double> workerTotals,
     required double grandTotal,
+    List<ReportAdvice> advice = const [],
     String footerNote = '',
   }) async {
     final doc = pw.Document();
@@ -36,6 +38,18 @@ class PdfReportService {
           pw.SizedBox(height: 8),
           pw.Text('Jami sotuv: ${grandTotal.toStringAsFixed(0)} so‘m',
               style: const pw.TextStyle(fontSize: 14)),
+          if (advice.isNotEmpty) ...[
+            pw.SizedBox(height: 12),
+            pw.Text('AI maslahatlar',
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 6),
+            ...advice.map(
+              (item) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 4),
+                child: pw.Text('• ${item.title}: ${item.body}'),
+              ),
+            ),
+          ],
           pw.SizedBox(height: 16),
           pw.Text('Ishchilar bo‘yicha',
               style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),

@@ -18,4 +18,20 @@ void main() {
     expect(find.text('Ishchi'), findsOneWidget);
     expect(find.text('Admin'), findsOneWidget);
   });
+
+  testWidgets('Dashboard opens report screen', (WidgetTester tester) async {
+    await tester.pumpWidget(const TaxtaApp());
+
+    await tester.tap(find.text('Kirish').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tezkor amallar'), findsOneWidget);
+    expect(find.text('Hisobot'), findsOneWidget);
+
+    await tester.tap(find.text('Hisobot'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bugungi hisobot'), findsOneWidget);
+    expect(find.text('AI maslahat'), findsOneWidget);
+  });
 }

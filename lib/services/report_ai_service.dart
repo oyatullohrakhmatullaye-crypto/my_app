@@ -1,0 +1,205 @@
+import '../models/defect_record.dart';
+import '../models/product.dart';
+import '../models/sale_record.dart';
+
+enum ReportAdviceLevel { good, warning, danger, info }
+
+class ReportAdvice {
+  const ReportAdvice({
+    required this.title,
+    required this.body,
+    required this.level,
+  });
+
+  final String title;
+  final String body;
+  final ReportAdviceLevel level;
+}
+
+class ProductSaleSummary {
+  const ProductSaleSummary({
+    required this.name,
+    required this.quantity,
+    required this.total,
+  });
+
+  final String name;
+  final int quantity;
+  final double total;
+}
+
+class DailyReportSummary {
+  const DailyReportSummary({
+    required this.sales,
+    required this.defects,
+    required this.products,
+    required this.workerTotals,
+    required this.totalRevenue,
+    required this.soldQuantity,
+    required this.averageCheck,
+    required this.defectQuantity,
+    required this.defectValue,
+    required this.stockValue,
+    required this.lowStockCount,
+    required this.topProduct,
+  });
+
+  final List<SaleRecord> sales;
+  final List<DefectRecord> defects;
+  final List<Product> products;
+  final Map<String, double> workerTotals;
+  final double totalRevenue;
+  final int soldQuantity;
+  final double averageCheck;
+  final int defectQuantity;
+  final double defectValue;
+  final double stockValue;
+  final int lowStockCount;
+  final ProductSaleSummary? topProduct;
+
+  int get checkCount => sales.length;
+  double get netRevenue => totalRevenue - defectValue;
+}
+
+class ReportAiService {
+  static DailyReportSummary buildSummary({
+    required DateTime day,
+    required List<SaleRecord> allSales,
+    required List<DefectRecord> allDefects,
+    required List<Product> products,
+    required Map<String, double> workerTotals,
+  }) {
+    final sales = allSales.where((s) => _sameDay(s.at, day)).toList()
+      ..sort((a, b) => b.at.compareTo(a.at));
+    final defects = allDefects.where((d) => _sameDay(d.at, day)).toList()
+      ..sort((a, b) => b.at.compareTo(a.at));
+    final totalRevenue = sales.fold<double>(0, (sum, s) => sum + s.total);
+    final soldQuantity = sales.fold<int>(0, (sum, s) => sum + s.quantity);
+    final defectQuantity = defects.fold<int>(0, (sum, d) => sum + d.quantity);
+    final stockValue =
+        products.fold<double>(0, (sum, p) => sum + p.price * p.quantity);
+    final lowStockCount = products.where((p) => p.quantity <= 10).length;
+    final defectValue = defects.fold<double>(0, (sum, defect) {
+      final price = _priceForProduct(products, defect.productId);
+      return sum + price * defect.quantity;
+    });
+
+    final productMap = <String, _MutableProductSale>{};
+    for (final sale in sales) {
+      final current = productMap.putIfAbsent(
+        sale.productName,
+        () => _MutableProductSale(sale.productName),
+      );
+      current.quantity += sale.quantity;
+      current.total += sale.total;
+    }
+    final productSales = productMap.values.toList()
+      ..sort((a, b) => b.quantity.compareTo(a.quantity));
+    final topProduct = productSales.isEmpty
+        ? null
+        : ProductSaleSummary(
+            name: productSales.first.name,
+            quantity: productSales.first.quantity,
+            total: productSales.first.total,
+          );
+
+    return DailyReportSummary(
+      sales: sales,
+      defects: defects,
+      products: products,
+      workerTotals: workerTotals,
+      totalRevenue: totalRevenue,
+      soldQuantity: soldQuantity,
+      averageCheck: sales.isEmpty ? 0 : totalRevenue / sales.length,
+      defectQuantity: defectQuantity,
+      defectValue: defectValue,
+      stockValue: stockValue,
+      lowStockCount: lowStockCount,
+      topProduct: topProduct,
+    );
+  }
+
+  static List<ReportAdvice> buildAdvice(DailyReportSummary summary) {
+    final advice = <ReportAdvice>[];
+
+    if (summary.sales.isEmpty) {
+      advice.add(const ReportAdvice(
+        title: 'Hali sotuv yo‘q',
+        body:
+            'Kun oxirida aniq hisobot chiqishi uchun har bir sotuvni darhol kiritib boring.',
+        level: ReportAdviceLevel.info,
+      ));
+    } else {
+      advice.add(ReportAdvice(
+        title: 'Kunlik pul oqimi nazoratda',
+        body:
+            'Bugun ${summary.checkCount} ta chek orqali ${summary.soldQuantity} dona mahsulot sotildi.',
+        level: ReportAdviceLevel.good,
+      ));
+    }
+
+    final topProduct = summary.topProduct;
+    if (topProduct != null) {
+      advice.add(ReportAdvice(
+        title: 'Eng yuradigan mahsulot',
+        body:
+            '${topProduct.name} bugun ${topProduct.quantity} dona sotildi. Shu pozitsiya zaxirasini birinchi tekshiring.',
+        level: ReportAdviceLevel.good,
+      ));
+    }
+
+    if (summary.lowStockCount > 0) {
+      advice.add(ReportAdvice(
+        title: 'Zaxira xavfi bor',
+        body:
+            '${summary.lowStockCount} ta mahsulotda qoldiq 10 donadan kam. Ertangi savdo to‘xtab qolmasligi uchun to‘ldirish kerak.',
+        level: ReportAdviceLevel.warning,
+      ));
+    } else {
+      advice.add(const ReportAdvice(
+        title: 'Zaxira yetarli',
+        body: 'Hozircha mahsulotlar bo‘yicha kritik kamlik ko‘rinmayapti.',
+        level: ReportAdviceLevel.good,
+      ));
+    }
+
+    if (summary.defectQuantity > 0) {
+      advice.add(ReportAdvice(
+        title: 'Brakni alohida tekshiring',
+        body:
+            'Bugun ${summary.defectQuantity} dona brak kiritildi. Taxminiy yo‘qotish: ${summary.defectValue.toStringAsFixed(0)} so‘m.',
+        level: ReportAdviceLevel.danger,
+      ));
+    }
+
+    if (summary.averageCheck > 0 && summary.averageCheck < 100000) {
+      advice.add(ReportAdvice(
+        title: 'O‘rtacha chek past',
+        body:
+            'O‘rtacha chek ${summary.averageCheck.toStringAsFixed(0)} so‘m. Sotuvda qo‘shimcha mahsulot tavsiya qilish foydali bo‘ladi.',
+        level: ReportAdviceLevel.warning,
+      ));
+    }
+
+    return advice;
+  }
+
+  static double _priceForProduct(List<Product> products, String id) {
+    for (final product in products) {
+      if (product.id == id) return product.price;
+    }
+    return 0;
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+}
+
+class _MutableProductSale {
+  _MutableProductSale(this.name);
+
+  final String name;
+  int quantity = 0;
+  double total = 0;
+}
