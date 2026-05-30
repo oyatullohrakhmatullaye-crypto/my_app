@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/customer.dart';
@@ -22,6 +23,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   final _debt = TextEditingController();
   final _limit = TextEditingController();
   String _type = 'Doimiy';
+  DateTime? _debtDueDate;
 
   @override
   void initState() {
@@ -35,6 +37,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
       _debt.text = c.debt.toStringAsFixed(0);
       _limit.text = c.creditLimit.toStringAsFixed(0);
       _type = c.type.isEmpty ? 'Doimiy' : c.type;
+      _debtDueDate = c.debtDueDate;
     }
   }
 
@@ -68,6 +71,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
           debt: debt,
           creditLimit: limit,
           createdAt: DateTime.now(),
+          debtDueDate: debt > 0 ? _debtDueDate : null,
         ),
       );
     } else {
@@ -80,6 +84,8 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
           note: _note.text.trim(),
           debt: debt,
           creditLimit: limit,
+          debtDueDate: debt > 0 ? _debtDueDate : null,
+          clearDebtDueDate: debt <= 0,
         ),
       );
     }
@@ -88,6 +94,17 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
 
   double _number(String value) {
     return double.tryParse(value.replaceAll(' ', '').replaceAll(',', '.')) ?? 0;
+  }
+
+  Future<void> _pickDebtDueDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _debtDueDate ?? now.add(const Duration(days: 7)),
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked != null) setState(() => _debtDueDate = picked);
   }
 
   @override
@@ -173,6 +190,27 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _pickDebtDueDate,
+              icon: const Icon(Icons.event_available_outlined),
+              label: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _debtDueDate == null
+                      ? 'Qaytarish kuni belgilanmagan'
+                      : 'Qaytarish kuni: ${DateFormat('dd.MM.yyyy').format(_debtDueDate!)}',
+                ),
+              ),
+            ),
+            if (_debtDueDate != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => setState(() => _debtDueDate = null),
+                  child: const Text('Sanani tozalash'),
+                ),
+              ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _note,

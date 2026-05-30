@@ -9,6 +9,8 @@ class Customer {
     required this.debt,
     required this.creditLimit,
     required this.createdAt,
+    this.debtDueDate,
+    this.lastPaymentAt,
   });
 
   final String id;
@@ -20,6 +22,8 @@ class Customer {
   double debt;
   double creditLimit;
   DateTime createdAt;
+  DateTime? debtDueDate;
+  DateTime? lastPaymentAt;
 
   Customer copyWith({
     String? name,
@@ -29,6 +33,9 @@ class Customer {
     String? note,
     double? debt,
     double? creditLimit,
+    DateTime? debtDueDate,
+    DateTime? lastPaymentAt,
+    bool clearDebtDueDate = false,
   }) {
     return Customer(
       id: id,
@@ -40,6 +47,8 @@ class Customer {
       debt: debt ?? this.debt,
       creditLimit: creditLimit ?? this.creditLimit,
       createdAt: createdAt,
+      debtDueDate: clearDebtDueDate ? null : debtDueDate ?? this.debtDueDate,
+      lastPaymentAt: lastPaymentAt ?? this.lastPaymentAt,
     );
   }
 
@@ -54,6 +63,8 @@ class Customer {
       'debt': debt,
       'creditLimit': creditLimit,
       'createdAt': createdAt.toIso8601String(),
+      'debtDueDate': debtDueDate?.toIso8601String(),
+      'lastPaymentAt': lastPaymentAt?.toIso8601String(),
     };
   }
 
@@ -69,6 +80,8 @@ class Customer {
       creditLimit: (map['creditLimit'] as num?)?.toDouble() ?? 0,
       createdAt: DateTime.tryParse((map['createdAt'] ?? '').toString()) ??
           DateTime.now(),
+      debtDueDate: DateTime.tryParse((map['debtDueDate'] ?? '').toString()),
+      lastPaymentAt: DateTime.tryParse((map['lastPaymentAt'] ?? '').toString()),
     );
   }
 }

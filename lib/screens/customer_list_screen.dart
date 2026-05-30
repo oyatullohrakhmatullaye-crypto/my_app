@@ -155,7 +155,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     final total = sales.fold<double>(0, (sum, s) => sum + s.total);
     final last = sales.isEmpty ? null : sales.first.at;
     final danger =
-        customer.creditLimit > 0 && customer.debt >= customer.creditLimit;
+        customer.creditLimit > 0 && customer.debt >= customer.creditLimit ||
+            _isOverdue(customer);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -221,6 +222,16 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                     'Qarz: ${_moneyText(customer.debt)}',
                     color: danger ? const Color(0xFFB3261E) : null,
                   ),
+                  if (customer.debt > 0)
+                    _chip(
+                      context,
+                      Icons.event_available_outlined,
+                      customer.debtDueDate == null
+                          ? 'Qaytarish kuni yo‘q'
+                          : 'Qaytarish: ${DateFormat('dd.MM').format(customer.debtDueDate!)}',
+                      color:
+                          _isOverdue(customer) ? const Color(0xFFB3261E) : null,
+                    ),
                   _chip(
                     context,
                     Icons.history,
@@ -305,6 +316,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   void _showProfile(BuildContext context, Customer customer) {
     final shop = context.read<ShopService>();
     final sales = shop.salesForCustomer(customer.id);
+    final payments = shop.paymentsForCustomer(customer.id);
     final total = shop.totalForCustomer(customer.id);
     final advice = _customerAdvice(customer, sales, total);
     showModalBottomSheet<void>(
@@ -355,6 +367,27 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   title: Text(item),
                 ),
               ),
+            const SizedBox(height: 10),
+            const Text('To‘lovlar',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            if (payments.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Text('To‘lov tarixi hali yo‘q.'),
+                ),
+              )
+            else
+              for (final payment in payments.take(5))
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.payments_outlined),
+                    title: Text(_moneyText(payment.amount)),
+                    subtitle:
+                        Text(DateFormat('dd.MM.yyyy HH:mm').format(payment.at)),
+                  ),
+                ),
             const SizedBox(height: 10),
             const Text('Oxirgi xaridlar',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
@@ -430,6 +463,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     } else if (customer.debt > 0) {
       advice.add('Qarz bor. Keyingi sotuvda to‘lovni eslatish kerak.');
     }
+    if (_isOverdue(customer)) {
+      advice.add('Qaytarish kuni o‘tgan. Bugun albatta bog‘lanish kerak.');
+    } else if (customer.debtDueDate != null && customer.debt > 0) {
+      advice.add(
+          'Qaytarish kuni: ${DateFormat('dd.MM.yyyy').format(customer.debtDueDate!)}.');
+    }
     if (total > 1000000) {
       advice.add('Katta klient. Alohida narx yoki diler sharti berish mumkin.');
     }
@@ -479,5 +518,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
   String _moneyText(double value) {
     return '${_money.format(value.round())} so‘m';
+  }
+
+  bool _isOverdue(Customer customer) {
+    final due = customer.debtDueDate;
+    if (due == null || customer.debt <= 0) return false;
+    final now = DateTime.now();
+    return DateTime(due.year, due.month, due.day)
+        .isBefore(DateTime(now.year, now.month, now.day));
   }
 }

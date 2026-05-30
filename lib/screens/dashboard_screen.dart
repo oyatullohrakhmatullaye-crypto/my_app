@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../services/shop_service.dart';
 import 'customer_list_screen.dart';
 import 'defect_screen.dart';
+import 'debt_list_screen.dart';
 import 'login_screen.dart';
 import 'product_form_screen.dart';
 import 'product_list_screen.dart';
@@ -32,6 +33,13 @@ class DashboardScreen extends StatelessWidget {
       );
     }
 
+    void openDebts() {
+      Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const DebtListScreen()),
+      );
+    }
+
     if (u == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -55,6 +63,11 @@ class DashboardScreen extends StatelessWidget {
             icon: const Icon(Icons.groups_outlined),
             tooltip: 'Klientlar',
             onPressed: openCustomers,
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            tooltip: 'Qarzdorlik',
+            onPressed: openDebts,
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -122,6 +135,13 @@ class DashboardScreen extends StatelessWidget {
                 icon: Icons.groups_outlined,
                 onTap: openCustomers,
               ),
+              _tapStatCard(
+                context,
+                label: 'Qarz',
+                value: _moneyShort(shop.totalDebt),
+                icon: Icons.account_balance_wallet_outlined,
+                onTap: openDebts,
+              ),
               _statCard(
                 context,
                 label: 'Bugun',
@@ -172,6 +192,14 @@ class DashboardScreen extends StatelessWidget {
                 icon: Icons.groups_outlined,
                 color: const Color(0xFF6A4C93),
                 onTap: openCustomers,
+              ),
+              const SizedBox(height: 10),
+              _quickActionButton(
+                context,
+                label: 'Qarzdorlik',
+                icon: Icons.account_balance_wallet_outlined,
+                color: const Color(0xFFB15D1F),
+                onTap: openDebts,
               ),
               const SizedBox(height: 10),
               _quickActionButton(
@@ -296,5 +324,11 @@ class DashboardScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _moneyShort(double value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)} mln';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(0)} ming';
+    return value.toStringAsFixed(0);
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/app_user.dart';
 import '../models/customer.dart';
+import '../models/debt_payment.dart';
 import '../models/defect_record.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
@@ -24,11 +25,13 @@ class ShopService extends ChangeNotifier {
   final List<SaleRecord> _sales = [];
   final List<DefectRecord> _defects = [];
   final List<Customer> _customers = [];
+  final List<DebtPayment> _debtPayments = [];
 
   List<Product> get products => List.unmodifiable(_products);
   List<SaleRecord> get sales => List.unmodifiable(_sales);
   List<DefectRecord> get defects => List.unmodifiable(_defects);
   List<Customer> get customers => List.unmodifiable(_customers);
+  List<DebtPayment> get debtPayments => List.unmodifiable(_debtPayments);
 
   bool _isReady = false;
   bool get isReady => _isReady;
@@ -42,6 +45,7 @@ class ShopService extends ChangeNotifier {
     final storedSales = _localStore.loadSales();
     final storedDefects = _localStore.loadDefects();
     final storedCustomers = _localStore.loadCustomers();
+    final storedDebtPayments = _localStore.loadDebtPayments();
 
     _products
       ..clear()
@@ -55,6 +59,9 @@ class ShopService extends ChangeNotifier {
     _customers
       ..clear()
       ..addAll(storedCustomers);
+    _debtPayments
+      ..clear()
+      ..addAll(storedDebtPayments);
 
     _isReady = true;
     notifyListeners();
@@ -99,6 +106,8 @@ class ShopService extends ChangeNotifier {
   Future<void> _persistSales() => _localStore.saveSales(_sales);
   Future<void> _persistDefects() => _localStore.saveDefects(_defects);
   Future<void> _persistCustomers() => _localStore.saveCustomers(_customers);
+  Future<void> _persistDebtPayments() =>
+      _localStore.saveDebtPayments(_debtPayments);
 
   void login({required String name, required UserRole role}) {
     _user = AppUser(
@@ -153,8 +162,10 @@ class ShopService extends ChangeNotifier {
 
   void deleteCustomer(String id) {
     _customers.removeWhere((e) => e.id == id);
+    _debtPayments.removeWhere((e) => e.customerId == id);
     notifyListeners();
     unawaited(_persistCustomers());
+    unawaited(_persistDebtPayments());
   }
 
   Customer? customerById(String? id) {
@@ -178,6 +189,8 @@ class ShopService extends ChangeNotifier {
     required String productId,
     required int quantity,
     String? customerId,
+    bool addToDebt = false,
+    DateTime? debtDueDate,
   }) {
     final u = _user;
     if (u == null) return 'Avval tizimga kiring';
@@ -188,8 +201,12 @@ class ShopService extends ChangeNotifier {
       return 'Zaxira yetarli emas (${p.quantity} dona)';
     }
     final customer = customerById(customerId);
+    if (addToDebt && customer == null) {
+      return 'Qarzga yozish uchun klient tanlang';
+    }
 
     p.quantity -= quantity;
+    final saleTotal = p.price * quantity;
     _sales.add(SaleRecord(
       id: _genId(),
       productId: p.id,
@@ -201,20 +218,66 @@ class ShopService extends ChangeNotifier {
       customerId: customer?.id,
       customerName: customer?.name,
     ));
+    if (addToDebt && customer != null) {
+      customer.debt += saleTotal;
+      if (debtDueDate != null) {
+        customer.debtDueDate = debtDueDate;
+      } else {
+        customer.debtDueDate ??= DateTime.now().add(const Duration(days: 7));
+      }
+    }
     notifyListeners();
     unawaited(_persistProducts());
     unawaited(_persistSales());
+    if (addToDebt) unawaited(_persistCustomers());
     return null;
   }
 
-  String? sellFromVoiceText(String text, {String? customerId}) {
+  String? sellFromVoiceText(String text,
+      {String? customerId, bool addToDebt = false, DateTime? debtDueDate}) {
     final parsed = VoiceSaleParser.parse(text, _products);
     if (parsed.product == null) return parsed.message;
     return sell(
       productId: parsed.product!.id,
       quantity: parsed.quantity,
       customerId: customerId,
+      addToDebt: addToDebt,
+      debtDueDate: debtDueDate,
     );
+  }
+
+  String? addDebtPayment({
+    required String customerId,
+    required double amount,
+    String? note,
+  }) {
+    final u = _user;
+    if (u == null) return 'Avval tizimga kiring';
+    final customer = customerById(customerId);
+    if (customer == null) return 'Klient topilmadi';
+    if (amount <= 0) return 'To‘lov summasi noto‘g‘ri';
+    if (customer.debt <= 0) return 'Bu klientda qarz yo‘q';
+
+    final paid = amount > customer.debt ? customer.debt : amount;
+    customer.debt -= paid;
+    customer.lastPaymentAt = DateTime.now();
+    if (customer.debt <= 0) {
+      customer.debt = 0;
+      customer.debtDueDate = null;
+    }
+    _debtPayments.add(DebtPayment(
+      id: _genId(),
+      customerId: customer.id,
+      customerName: customer.name,
+      amount: paid,
+      at: DateTime.now(),
+      workerName: u.name,
+      note: note,
+    ));
+    notifyListeners();
+    unawaited(_persistCustomers());
+    unawaited(_persistDebtPayments());
+    return null;
   }
 
   String? reportDefect({
@@ -286,6 +349,27 @@ class ShopService extends ChangeNotifier {
 
   double totalForCustomer(String customerId) {
     return salesForCustomer(customerId).fold<double>(0, (a, s) => a + s.total);
+  }
+
+  List<DebtPayment> paymentsForCustomer(String customerId) {
+    return _debtPayments.where((p) => p.customerId == customerId).toList()
+      ..sort((a, b) => b.at.compareTo(a.at));
+  }
+
+  List<Customer> get debtorCustomers {
+    return _customers.where((c) => c.debt > 0).toList()
+      ..sort((a, b) {
+        final ad = a.debtDueDate;
+        final bd = b.debtDueDate;
+        if (ad == null && bd == null) return b.debt.compareTo(a.debt);
+        if (ad == null) return 1;
+        if (bd == null) return -1;
+        return ad.compareTo(bd);
+      });
+  }
+
+  double get totalDebt {
+    return _customers.fold<double>(0, (sum, c) => sum + c.debt);
   }
 
   double totalForDay(DateTime day) {

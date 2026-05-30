@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -27,6 +28,8 @@ class _SalesScreenState extends State<SalesScreen> {
   bool _speechReady = false;
   String _voiceText = '';
   String? _selectedCustomerId;
+  bool _saleOnDebt = false;
+  DateTime? _debtDueDate;
 
   @override
   void dispose() {
@@ -159,9 +162,10 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   Future<void> _sellFromVoice(String text) async {
-    final err = context
-        .read<ShopService>()
-        .sellFromVoiceText(text, customerId: _selectedCustomerId);
+    final err = context.read<ShopService>().sellFromVoiceText(text,
+        customerId: _selectedCustomerId,
+        addToDebt: _saleOnDebt,
+        debtDueDate: _effectiveDebtDueDate());
     if (!mounted) return;
     if (err != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
@@ -343,6 +347,22 @@ class _SalesScreenState extends State<SalesScreen> {
     }
   }
 
+  DateTime? _effectiveDebtDueDate() {
+    if (!_saleOnDebt) return null;
+    return _debtDueDate ?? DateTime.now().add(const Duration(days: 7));
+  }
+
+  Future<void> _pickDebtDueDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _effectiveDebtDueDate() ?? now.add(const Duration(days: 7)),
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked != null) setState(() => _debtDueDate = picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final shop = context.watch<ShopService>();
@@ -388,10 +408,51 @@ class _SalesScreenState extends State<SalesScreen> {
                       child: Text(customer.name),
                     ),
                 ],
-                onChanged: (v) => setState(() => _selectedCustomerId = v),
+                onChanged: (v) => setState(() {
+                  _selectedCustomerId = v;
+                  if (v == null) _saleOnDebt = false;
+                }),
               ),
             ),
           ),
+          if (_selectedCustomerId != null) ...[
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _saleOnDebt,
+                      onChanged: (v) => setState(() {
+                        _saleOnDebt = v;
+                        if (v) {
+                          _debtDueDate ??=
+                              DateTime.now().add(const Duration(days: 7));
+                        }
+                      }),
+                      secondary:
+                          const Icon(Icons.account_balance_wallet_outlined),
+                      title: const Text('Qarzga yozish'),
+                    ),
+                    if (_saleOnDebt)
+                      OutlinedButton.icon(
+                        onPressed: _pickDebtDueDate,
+                        icon: const Icon(Icons.event_available_outlined),
+                        label: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Qaytarish kuni: ${DateFormat('dd.MM.yyyy').format(_effectiveDebtDueDate()!)}',
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           for (final p in products) _productSaleCard(context, shop, p),
         ],
@@ -451,6 +512,8 @@ class _SalesScreenState extends State<SalesScreen> {
                   productId: p.id,
                   quantity: q,
                   customerId: _selectedCustomerId,
+                  addToDebt: _saleOnDebt,
+                  debtDueDate: _effectiveDebtDueDate(),
                 );
                 if (err != null) {
                   ScaffoldMessenger.of(context)
@@ -458,8 +521,11 @@ class _SalesScreenState extends State<SalesScreen> {
                 } else {
                   final customer = shop.customerById(_selectedCustomerId);
                   final who = customer == null ? '' : ' · ${customer.name}';
+                  final debtText = _saleOnDebt ? ' · qarzga yozildi' : '';
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${p.name} · $q dona sotildi$who')),
+                    SnackBar(
+                        content:
+                            Text('${p.name} · $q dona sotildi$who$debtText')),
                   );
                   setState(() => _qty[p.id] = 1);
                 }
