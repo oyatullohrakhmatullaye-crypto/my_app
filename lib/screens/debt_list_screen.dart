@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/customer.dart';
 import '../services/shop_service.dart';
+import '../utils/money_input.dart';
 import 'customer_form_screen.dart';
 
 class DebtListScreen extends StatefulWidget {
@@ -282,9 +283,11 @@ class _DebtListScreenState extends State<DebtListScreen> {
             children: [
               TextField(
                 controller: amountCtrl,
-                keyboardType: TextInputType.number,
+                keyboardType: TextInputType.text,
                 decoration: const InputDecoration(
                   labelText: 'To‘lov summasi',
+                  hintText: '500000 yoki 500 000 so‘m',
+                  suffixText: 'so‘m',
                   prefixIcon: Icon(Icons.payments_outlined),
                 ),
               ),
@@ -312,9 +315,7 @@ class _DebtListScreenState extends State<DebtListScreen> {
         ),
       );
       if (ok == true && context.mounted) {
-        final amount = double.tryParse(
-                amountCtrl.text.replaceAll(' ', '').replaceAll(',', '.')) ??
-            0;
+        final amount = parseMoneyInput(amountCtrl.text);
         final err = context.read<ShopService>().addDebtPayment(
               customerId: customer.id,
               amount: amount,
@@ -369,10 +370,7 @@ class _DebtListScreenState extends State<DebtListScreen> {
             }
 
             void save() {
-              final amount = double.tryParse(amountCtrl.text
-                      .replaceAll(' ', '')
-                      .replaceAll(',', '.')) ??
-                  0;
+              final amount = parseMoneyInput(amountCtrl.text);
               final service = sheetContext.read<ShopService>();
               final err = existingMode
                   ? service.addDebtToCustomer(
@@ -488,10 +486,11 @@ class _DebtListScreenState extends State<DebtListScreen> {
                     controller: amountCtrl,
                     decoration: const InputDecoration(
                       labelText: 'Qarz summasi',
-                      hintText: 'Masalan: 500000',
+                      hintText: '500000 yoki 500 000 so‘m',
+                      suffixText: 'so‘m',
                       prefixIcon: Icon(Icons.account_balance_wallet_outlined),
                     ),
-                    keyboardType: TextInputType.number,
+                    keyboardType: TextInputType.text,
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(

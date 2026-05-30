@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/product.dart';
 import '../services/shop_service.dart';
+import '../utils/money_input.dart';
 
 class ProductFormScreen extends StatefulWidget {
   const ProductFormScreen({super.key, this.product});
@@ -151,10 +152,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _price,
-                      keyboardType: TextInputType.number,
+                      keyboardType: TextInputType.text,
                       textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         labelText: 'Narxi',
+                        hintText: '45000 yoki 45 000 so‘m',
                         suffixText: 'so‘m',
                         prefixIcon: Icon(Icons.payments_outlined),
                       ),
@@ -222,7 +224,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   double _parseMoney(String value) {
-    return double.tryParse(_digitsOnly(value)) ?? 0;
+    return parseMoneyInput(value);
   }
 
   String _digitsOnly(String value) {

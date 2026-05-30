@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/customer.dart';
 import '../services/shop_service.dart';
+import '../utils/money_input.dart';
 
 class CustomerFormScreen extends StatefulWidget {
   const CustomerFormScreen({super.key, this.customer});
@@ -56,8 +57,8 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
     if (!_formKey.currentState!.validate()) return;
     final shop = context.read<ShopService>();
     final existing = widget.customer;
-    final debt = _number(_debt.text);
-    final limit = _number(_limit.text);
+    final debt = parseMoneyInput(_debt.text);
+    final limit = parseMoneyInput(_limit.text);
 
     if (existing == null) {
       shop.addCustomer(
@@ -90,10 +91,6 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
       );
     }
     Navigator.pop(context);
-  }
-
-  double _number(String value) {
-    return double.tryParse(value.replaceAll(' ', '').replaceAll(',', '.')) ?? 0;
   }
 
   Future<void> _pickDebtDueDate() async {
@@ -172,9 +169,11 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                     controller: _debt,
                     decoration: const InputDecoration(
                       labelText: 'Qarz',
+                      hintText: '500000 yoki 500 000 so‘m',
+                      suffixText: 'so‘m',
                       prefixIcon: Icon(Icons.account_balance_wallet_outlined),
                     ),
-                    keyboardType: TextInputType.number,
+                    keyboardType: TextInputType.text,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -183,9 +182,11 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                     controller: _limit,
                     decoration: const InputDecoration(
                       labelText: 'Qarz limiti',
+                      hintText: '1 mln yoki 1 000 000 so‘m',
+                      suffixText: 'so‘m',
                       prefixIcon: Icon(Icons.speed_outlined),
                     ),
-                    keyboardType: TextInputType.number,
+                    keyboardType: TextInputType.text,
                   ),
                 ),
               ],
