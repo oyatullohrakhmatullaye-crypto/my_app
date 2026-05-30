@@ -181,6 +181,14 @@ class _DebtListScreenState extends State<DebtListScreen> {
                         style: TextStyle(
                             color: Theme.of(context).colorScheme.outline),
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        c.address.isEmpty ? 'Manzil kiritilmagan' : c.address,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.outline),
+                      ),
                     ],
                   ),
                 ),
@@ -327,12 +335,21 @@ class _DebtListScreenState extends State<DebtListScreen> {
     final shop = context.read<ShopService>();
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
+    final addressCtrl = TextEditingController();
     final amountCtrl = TextEditingController();
     final noteCtrl = TextEditingController();
     var existingMode = shop.customers.isNotEmpty;
     var selectedCustomerId =
         shop.customers.isEmpty ? null : shop.customers.first.id;
     var dueDate = DateTime.now().add(const Duration(days: 7));
+
+    void fillExistingCustomerInfo() {
+      final selected = shop.customerById(selectedCustomerId ?? '');
+      if (selected == null) return;
+      addressCtrl.text = selected.address;
+    }
+
+    if (existingMode) fillExistingCustomerInfo();
 
     try {
       await showModalBottomSheet<void>(
@@ -362,11 +379,13 @@ class _DebtListScreenState extends State<DebtListScreen> {
                       customerId: selectedCustomerId ?? '',
                       amount: amount,
                       dueDate: dueDate,
+                      address: addressCtrl.text,
                       note: noteCtrl.text,
                     )
                   : service.createDebtor(
                       name: nameCtrl.text,
                       phone: phoneCtrl.text,
+                      address: addressCtrl.text,
                       amount: amount,
                       dueDate: dueDate,
                       note: noteCtrl.text,
@@ -409,9 +428,10 @@ class _DebtListScreenState extends State<DebtListScreen> {
                       ),
                     ],
                     selected: {existingMode},
-                    onSelectionChanged: (value) => setSheetState(() =>
-                        existingMode =
-                            value.first && shop.customers.isNotEmpty),
+                    onSelectionChanged: (value) => setSheetState(() {
+                      existingMode = value.first && shop.customers.isNotEmpty;
+                      if (existingMode) fillExistingCustomerInfo();
+                    }),
                   ),
                   const SizedBox(height: 12),
                   if (existingMode && shop.customers.isNotEmpty)
@@ -428,8 +448,10 @@ class _DebtListScreenState extends State<DebtListScreen> {
                             child: Text(customer.name),
                           ),
                       ],
-                      onChanged: (value) =>
-                          setSheetState(() => selectedCustomerId = value),
+                      onChanged: (value) => setSheetState(() {
+                        selectedCustomerId = value;
+                        fillExistingCustomerInfo();
+                      }),
                     )
                   else ...[
                     TextField(
@@ -451,6 +473,16 @@ class _DebtListScreenState extends State<DebtListScreen> {
                       textInputAction: TextInputAction.next,
                     ),
                   ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: addressCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Manzil',
+                      hintText: 'Masalan: Chilonzor, 12-mavze',
+                      prefixIcon: Icon(Icons.location_on_outlined),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: amountCtrl,
@@ -496,6 +528,7 @@ class _DebtListScreenState extends State<DebtListScreen> {
     } finally {
       nameCtrl.dispose();
       phoneCtrl.dispose();
+      addressCtrl.dispose();
       amountCtrl.dispose();
       noteCtrl.dispose();
     }

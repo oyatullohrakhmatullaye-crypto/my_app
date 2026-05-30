@@ -284,6 +284,7 @@ class ShopService extends ChangeNotifier {
     required String customerId,
     required double amount,
     required DateTime dueDate,
+    String? address,
     String? note,
   }) {
     final u = _user;
@@ -294,6 +295,10 @@ class ShopService extends ChangeNotifier {
 
     customer.debt += amount;
     customer.debtDueDate = dueDate;
+    final cleanAddress = address?.trim();
+    if (cleanAddress != null && cleanAddress.isNotEmpty) {
+      customer.address = cleanAddress;
+    }
     final cleanNote = note?.trim();
     if (cleanNote != null && cleanNote.isNotEmpty) {
       customer.note = customer.note.trim().isEmpty
@@ -308,6 +313,7 @@ class ShopService extends ChangeNotifier {
   String? createDebtor({
     required String name,
     required String phone,
+    required String address,
     required double amount,
     required DateTime dueDate,
     String? note,
@@ -315,13 +321,14 @@ class ShopService extends ChangeNotifier {
     final u = _user;
     if (u == null) return 'Avval tizimga kiring';
     if (name.trim().isEmpty) return 'Klient nomini kiriting';
+    if (address.trim().isEmpty) return 'Manzilni kiriting';
     if (amount <= 0) return 'Qarz summasi noto‘g‘ri';
 
     final customer = Customer(
       id: _genId(),
       name: name.trim(),
       phone: phone.trim(),
-      address: '',
+      address: address.trim(),
       type: 'Qarzdor',
       note: note?.trim() ?? '',
       debt: amount,
