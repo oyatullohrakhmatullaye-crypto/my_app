@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../models/customer.dart';
 import '../services/report_ai_service.dart';
 import '../services/shop_service.dart';
+import '../utils/debt_risk.dart';
 import 'customer_list_screen.dart';
 import 'defect_screen.dart';
 import 'debt_list_screen.dart';
@@ -192,6 +194,10 @@ class DashboardScreen extends StatelessWidget {
           if (u.isAdmin) ...[
             _sellerKpiPanel(context, dailySummary),
             const SizedBox(height: 18),
+            if (shop.debtorCustomers.isNotEmpty) ...[
+              _debtRiskPanel(context, shop.debtorCustomers, openDebts),
+              const SizedBox(height: 18),
+            ],
           ],
           Text(
             'Tezkor amallar',
@@ -288,6 +294,135 @@ class DashboardScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _debtRiskPanel(
+    BuildContext context,
+    List<Customer> debtors,
+    VoidCallback openDebts,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final ranked = debtors.toList()
+      ..sort((a, b) => _debtRisk(b).score.compareTo(_debtRisk(a).score));
+    final top = ranked.first;
+    final topRisk = _debtRisk(top);
+    final riskyCount = debtors.where((c) => _debtRisk(c).isRisky).length;
+    final overdueTotal = debtors
+        .where((c) => _debtRisk(c).overdueDays > 0)
+        .fold<double>(0, (sum, c) => sum + c.debt);
+    final riskColor = _debtRiskColor(topRisk.level);
+
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: openDebts,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: riskColor),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'AI qarzdorlik nazorati',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  Text('$riskyCount xavfli',
+                      style: TextStyle(
+                          color: riskColor, fontWeight: FontWeight.w900)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Eng ustuvor: ${top.name} · ${_money(top.debt)} · ${topRisk.label}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 6),
+              Text(topRisk.action),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _miniDebtMetric(
+                      context,
+                      label: 'Xavf balli',
+                      value: '${topRisk.score}/100',
+                      color: riskColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _miniDebtMetric(
+                      context,
+                      label: 'Kechikkan qarz',
+                      value: _moneyShort(overdueTotal),
+                      color: overdueTotal > 0
+                          ? const Color(0xFFB3261E)
+                          : colors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _miniDebtMetric(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: color, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 2),
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  DebtRiskInfo _debtRisk(Customer customer) {
+    return calculateDebtRisk(
+      debt: customer.debt,
+      dueDate: customer.debtDueDate,
+      lastPaymentAt: customer.lastPaymentAt,
+    );
+  }
+
+  Color _debtRiskColor(DebtRiskLevel level) {
+    return switch (level) {
+      DebtRiskLevel.critical => const Color(0xFFB3261E),
+      DebtRiskLevel.high => const Color(0xFFB15D1F),
+      DebtRiskLevel.watch => const Color(0xFF315A8C),
+      DebtRiskLevel.low => const Color(0xFF2F7D55),
+    };
   }
 
   Widget _sellerKpiPanel(BuildContext context, DailyReportSummary summary) {

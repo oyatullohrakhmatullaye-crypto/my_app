@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/customer.dart';
 import '../services/shop_service.dart';
+import '../utils/debt_risk.dart';
 import '../utils/money_input.dart';
 import 'customer_form_screen.dart';
 
@@ -29,7 +30,8 @@ class _DebtListScreenState extends State<DebtListScreen> {
   Widget build(BuildContext context) {
     final shop = context.watch<ShopService>();
     final debtors = _filtered(shop.debtorCustomers);
-    final overdue = shop.debtorCustomers.where(_isOverdue).length;
+    final topRisky = _topRisky(shop.debtorCustomers);
+    final urgent = shop.debtorCustomers.where((c) => _risk(c).isRisky).length;
     final dueSoon = shop.debtorCustomers.where(_isDueSoon).length;
 
     return Scaffold(
@@ -54,9 +56,13 @@ class _DebtListScreenState extends State<DebtListScreen> {
           _summary(context,
               totalDebt: shop.totalDebt,
               debtorCount: shop.debtorCustomers.length,
-              overdue: overdue,
+              urgent: urgent,
               dueSoon: dueSoon),
           const SizedBox(height: 12),
+          if (topRisky != null) ...[
+            _riskBrief(context, topRisky, _risk(topRisky)),
+            const SizedBox(height: 12),
+          ],
           FilledButton.icon(
             onPressed: () => _showAddDebtorSheet(context),
             icon: const Icon(Icons.person_add_alt_1),
@@ -90,17 +96,19 @@ class _DebtListScreenState extends State<DebtListScreen> {
 
   List<Customer> _filtered(List<Customer> customers) {
     final q = _query.text.trim().toLowerCase();
-    return customers.where((c) {
+    final rows = customers.where((c) {
       final haystack = '${c.name} ${c.phone} ${c.address}'.toLowerCase();
       return q.isEmpty || haystack.contains(q);
     }).toList();
+    rows.sort(_compareByRisk);
+    return rows;
   }
 
   Widget _summary(
     BuildContext context, {
     required double totalDebt,
     required int debtorCount,
-    required int overdue,
+    required int urgent,
     required int dueSoon,
   }) {
     return GridView.count(
@@ -115,7 +123,7 @@ class _DebtListScreenState extends State<DebtListScreen> {
             _moneyText(totalDebt), 'Jami qarz', const Color(0xFF7A4A35)),
         _metric(context, Icons.groups_outlined, '$debtorCount', 'Qarzdor',
             Theme.of(context).colorScheme.primary),
-        _metric(context, Icons.warning_amber_outlined, '$overdue', 'O‘tgan',
+        _metric(context, Icons.priority_high_outlined, '$urgent', 'Xavfli',
             const Color(0xFFB3261E)),
         _metric(context, Icons.event_available_outlined, '$dueSoon', 'Yaqin',
             const Color(0xFFB15D1F)),
@@ -150,6 +158,8 @@ class _DebtListScreenState extends State<DebtListScreen> {
 
   Widget _debtorCard(BuildContext context, ShopService shop, Customer c) {
     final status = _status(c);
+    final risk = _risk(c);
+    final riskColor = _riskColor(risk.level);
     final payments = shop.paymentsForCustomer(c.id);
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -161,8 +171,8 @@ class _DebtListScreenState extends State<DebtListScreen> {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: status.color.withValues(alpha: 0.12),
-                  child: Icon(status.icon, color: status.color),
+                  backgroundColor: riskColor.withValues(alpha: 0.12),
+                  child: Icon(_riskIcon(risk.level), color: riskColor),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -193,9 +203,30 @@ class _DebtListScreenState extends State<DebtListScreen> {
                     ],
                   ),
                 ),
-                Text(_moneyText(c.debt),
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w900)),
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 128),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        _moneyText(c.debt),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${risk.score}/100',
+                        style: TextStyle(
+                            color: riskColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -203,6 +234,9 @@ class _DebtListScreenState extends State<DebtListScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
+                _chip(context, _riskIcon(risk.level),
+                    'Xavf: ${risk.label} · ${risk.headline}',
+                    color: riskColor),
                 _chip(context, status.icon, status.label, color: status.color),
                 _chip(
                   context,
@@ -220,6 +254,8 @@ class _DebtListScreenState extends State<DebtListScreen> {
                       '${payments.length} to‘lov'),
               ],
             ),
+            const SizedBox(height: 12),
+            _riskActionBox(context, risk),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -248,10 +284,82 @@ class _DebtListScreenState extends State<DebtListScreen> {
     );
   }
 
+  Widget _riskBrief(
+      BuildContext context, Customer customer, DebtRiskInfo risk) {
+    final c = _riskColor(risk.level);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: c.withValues(alpha: 0.12),
+              child: Icon(_riskIcon(risk.level), color: c),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('AI ustuvor qarzdor',
+                      style: TextStyle(color: c, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${customer.name} · ${_moneyText(customer.debt)} · ${risk.label}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(risk.action),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _riskActionBox(BuildContext context, DebtRiskInfo risk) {
+    final c = _riskColor(risk.level);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: c, width: 4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.auto_awesome, color: c, size: 20),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Aqlli tavsiya',
+                    style: TextStyle(color: c, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 3),
+                Text(risk.action),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _chip(BuildContext context, IconData icon, String text,
       {Color? color}) {
     final c = color ?? Theme.of(context).colorScheme.primary;
     return Container(
+      constraints:
+          BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 64),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: c.withValues(alpha: 0.1),
@@ -262,7 +370,14 @@ class _DebtListScreenState extends State<DebtListScreen> {
         children: [
           Icon(icon, size: 15, color: c),
           const SizedBox(width: 5),
-          Text(text, style: TextStyle(color: c, fontWeight: FontWeight.w700)),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: c, fontWeight: FontWeight.w700),
+            ),
+          ),
         ],
       ),
     );
@@ -600,6 +715,44 @@ class _DebtListScreenState extends State<DebtListScreen> {
         .difference(DateTime(today.year, today.month, today.day))
         .inDays;
     return diff <= 3;
+  }
+
+  Customer? _topRisky(List<Customer> customers) {
+    if (customers.isEmpty) return null;
+    final rows = customers.toList()..sort(_compareByRisk);
+    return rows.first;
+  }
+
+  int _compareByRisk(Customer a, Customer b) {
+    final riskCompare = _risk(b).score.compareTo(_risk(a).score);
+    if (riskCompare != 0) return riskCompare;
+    return b.debt.compareTo(a.debt);
+  }
+
+  DebtRiskInfo _risk(Customer c) {
+    return calculateDebtRisk(
+      debt: c.debt,
+      dueDate: c.debtDueDate,
+      lastPaymentAt: c.lastPaymentAt,
+    );
+  }
+
+  Color _riskColor(DebtRiskLevel level) {
+    return switch (level) {
+      DebtRiskLevel.critical => const Color(0xFFB3261E),
+      DebtRiskLevel.high => const Color(0xFFB15D1F),
+      DebtRiskLevel.watch => const Color(0xFF315A8C),
+      DebtRiskLevel.low => const Color(0xFF2F7D55),
+    };
+  }
+
+  IconData _riskIcon(DebtRiskLevel level) {
+    return switch (level) {
+      DebtRiskLevel.critical => Icons.crisis_alert_outlined,
+      DebtRiskLevel.high => Icons.warning_amber_outlined,
+      DebtRiskLevel.watch => Icons.manage_search_outlined,
+      DebtRiskLevel.low => Icons.check_circle_outline,
+    };
   }
 
   String _moneyText(double value) {
