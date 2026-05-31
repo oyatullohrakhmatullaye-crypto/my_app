@@ -6,6 +6,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 import '../models/product.dart';
 import '../services/shop_service.dart';
+import 'debt_list_screen.dart';
 
 /// Tez sotuv: mahsulot + soni + bir tugma. Ovoz orqali sotuv ham bor.
 class SalesScreen extends StatefulWidget {
@@ -28,7 +29,6 @@ class _SalesScreenState extends State<SalesScreen> {
   bool _speechReady = false;
   String _voiceText = '';
   String? _selectedCustomerId;
-  bool _saleOnDebt = false;
   DateTime? _debtDueDate;
 
   @override
@@ -163,9 +163,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
   Future<void> _sellFromVoice(String text) async {
     final err = context.read<ShopService>().sellFromVoiceText(text,
-        customerId: _selectedCustomerId,
-        addToDebt: _saleOnDebt,
-        debtDueDate: _effectiveDebtDueDate());
+        customerId: _selectedCustomerId, addToDebt: false, debtDueDate: null);
     if (!mounted) return;
     if (err != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
@@ -347,22 +345,6 @@ class _SalesScreenState extends State<SalesScreen> {
     }
   }
 
-  DateTime? _effectiveDebtDueDate() {
-    if (!_saleOnDebt) return null;
-    return _debtDueDate ?? DateTime.now().add(const Duration(days: 7));
-  }
-
-  Future<void> _pickDebtDueDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _effectiveDebtDueDate() ?? now.add(const Duration(days: 7)),
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 3),
-    );
-    if (picked != null) setState(() => _debtDueDate = picked);
-  }
-
   @override
   Widget build(BuildContext context) {
     final shop = context.watch<ShopService>();
@@ -373,6 +355,12 @@ class _SalesScreenState extends State<SalesScreen> {
       appBar: AppBar(
         title: const Text('Sotish'),
         actions: [
+          if (shop.latestSale != null)
+            IconButton(
+              icon: const Icon(Icons.undo),
+              tooltip: 'Oxirgi sotuvni bekor qilish',
+              onPressed: () => _undoLastSale(shop),
+            ),
           IconButton(
             icon: const Icon(Icons.mic),
             tooltip: 'Ovoz orqali sotish',
@@ -400,7 +388,7 @@ class _SalesScreenState extends State<SalesScreen> {
                 items: [
                   const DropdownMenuItem<String?>(
                     value: null,
-                    child: Text('Naqd klient tanlanmagan'),
+                    child: Text('Klient tanlanmagan'),
                   ),
                   for (final customer in customers)
                     DropdownMenuItem<String?>(
@@ -410,49 +398,10 @@ class _SalesScreenState extends State<SalesScreen> {
                 ],
                 onChanged: (v) => setState(() {
                   _selectedCustomerId = v;
-                  if (v == null) _saleOnDebt = false;
                 }),
               ),
             ),
           ),
-          if (_selectedCustomerId != null) ...[
-            const SizedBox(height: 8),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _saleOnDebt,
-                      onChanged: (v) => setState(() {
-                        _saleOnDebt = v;
-                        if (v) {
-                          _debtDueDate ??=
-                              DateTime.now().add(const Duration(days: 7));
-                        }
-                      }),
-                      secondary:
-                          const Icon(Icons.account_balance_wallet_outlined),
-                      title: const Text('Qarzga yozish'),
-                    ),
-                    if (_saleOnDebt)
-                      OutlinedButton.icon(
-                        onPressed: _pickDebtDueDate,
-                        icon: const Icon(Icons.event_available_outlined),
-                        label: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Qaytarish kuni: ${DateFormat('dd.MM.yyyy').format(_effectiveDebtDueDate()!)}',
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
           const SizedBox(height: 8),
           for (final p in products) _productSaleCard(context, shop, p),
         ],
@@ -507,29 +456,7 @@ class _SalesScreenState extends State<SalesScreen> {
             FilledButton(
               style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(52)),
-              onPressed: () {
-                final err = shop.sell(
-                  productId: p.id,
-                  quantity: q,
-                  customerId: _selectedCustomerId,
-                  addToDebt: _saleOnDebt,
-                  debtDueDate: _effectiveDebtDueDate(),
-                );
-                if (err != null) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text(err)));
-                } else {
-                  final customer = shop.customerById(_selectedCustomerId);
-                  final who = customer == null ? '' : ' · ${customer.name}';
-                  final debtText = _saleOnDebt ? ' · qarzga yozildi' : '';
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content:
-                            Text('${p.name} · $q dona sotildi$who$debtText')),
-                  );
-                  setState(() => _qty[p.id] = 1);
-                }
-              },
+              onPressed: () => _confirmSale(shop, p, q),
               child: const Text('SOTISH', style: TextStyle(fontSize: 18)),
             ),
           ],
@@ -537,4 +464,281 @@ class _SalesScreenState extends State<SalesScreen> {
       ),
     );
   }
+
+  Future<void> _confirmSale(
+    ShopService shop,
+    Product product,
+    int quantity,
+  ) async {
+    final decision = await _showPaymentSheet(context, shop, product, quantity);
+    if (!mounted || decision == null) return;
+
+    if (decision.openDebtsOnly) {
+      _openDebts();
+      return;
+    }
+
+    final onDebt = decision.choice == _PaymentChoice.debt;
+    final customerId = onDebt ? decision.customerId : _selectedCustomerId;
+    final err = shop.sell(
+      productId: product.id,
+      quantity: quantity,
+      customerId: customerId,
+      addToDebt: onDebt,
+      debtDueDate: onDebt ? decision.dueDate : null,
+    );
+    if (!mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+
+    final customer = shop.customerById(customerId);
+    final saleId = shop.latestSale?.id;
+    final who = customer == null ? '' : ' · ${customer.name}';
+    final paymentText = onDebt ? ' · nasiya' : ' · naqd';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content:
+            Text('${product.name} · $quantity dona sotildi$who$paymentText'),
+        action: saleId == null
+            ? null
+            : SnackBarAction(
+                label: 'Bekor',
+                onPressed: () => _undoSale(shop, saleId),
+              ),
+      ),
+    );
+    setState(() {
+      _qty[product.id] = 1;
+      if (onDebt) {
+        _selectedCustomerId = customerId;
+        _debtDueDate = decision.dueDate;
+      }
+    });
+    if (onDebt) _openDebts();
+  }
+
+  void _undoLastSale(ShopService shop) {
+    final saleId = shop.latestSale?.id;
+    if (saleId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bekor qilinadigan sotuv yo‘q')),
+      );
+      return;
+    }
+    _undoSale(shop, saleId);
+  }
+
+  void _undoSale(ShopService shop, String saleId) {
+    final err = shop.undoSale(saleId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(err ?? 'Sotuv bekor qilindi')),
+    );
+  }
+
+  Future<_SaleDecision?> _showPaymentSheet(
+    BuildContext context,
+    ShopService shop,
+    Product product,
+    int quantity,
+  ) {
+    var choice = _PaymentChoice.cash;
+    var selectedCustomerId = _selectedCustomerId;
+    var dueDate = _debtDueDate ?? DateTime.now().add(const Duration(days: 7));
+    final dateFmt = DateFormat('dd.MM.yyyy');
+
+    return showModalBottomSheet<_SaleDecision>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          Future<void> pickDueDate() async {
+            final now = DateTime.now();
+            final picked = await showDatePicker(
+              context: sheetContext,
+              initialDate: dueDate,
+              firstDate: DateTime(now.year - 1),
+              lastDate: DateTime(now.year + 3),
+            );
+            if (picked != null) setSheetState(() => dueDate = picked);
+          }
+
+          final debtMode = choice == _PaymentChoice.debt;
+          final effectiveCustomerId =
+              _validCustomerId(shop, selectedCustomerId) ??
+                  (shop.customers.isEmpty ? null : shop.customers.first.id);
+          final canDebtSell = !debtMode || effectiveCustomerId != null;
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                const Text('To‘lov turi',
+                    style:
+                        TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Text(
+                  '${product.name} · $quantity dona · ${(product.price * quantity).toStringAsFixed(0)} so‘m',
+                  style: TextStyle(
+                      color: Theme.of(sheetContext).colorScheme.outline),
+                ),
+                const SizedBox(height: 14),
+                SegmentedButton<_PaymentChoice>(
+                  segments: const [
+                    ButtonSegment(
+                      value: _PaymentChoice.cash,
+                      icon: Icon(Icons.point_of_sale),
+                      label: Text('Naqd'),
+                    ),
+                    ButtonSegment(
+                      value: _PaymentChoice.debt,
+                      icon: Icon(Icons.account_balance_wallet_outlined),
+                      label: Text('Nasiya'),
+                    ),
+                  ],
+                  selected: {choice},
+                  onSelectionChanged: (value) => setSheetState(() {
+                    choice = value.first;
+                    if (choice == _PaymentChoice.debt &&
+                        selectedCustomerId == null &&
+                        shop.customers.isNotEmpty) {
+                      selectedCustomerId = shop.customers.first.id;
+                    }
+                  }),
+                ),
+                const SizedBox(height: 14),
+                if (debtMode) ...[
+                  if (shop.customers.isEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Nasiya uchun klient kerak',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w900, fontSize: 16)),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Avval qarzdor yoki klient qo‘shing, keyin nasiya sotuvni bog‘laymiz.',
+                              style: TextStyle(
+                                  color: Theme.of(sheetContext)
+                                      .colorScheme
+                                      .outline),
+                            ),
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.pop(
+                                sheetContext,
+                                const _SaleDecision.openDebts(),
+                              ),
+                              icon: const Icon(Icons.person_add_alt_1),
+                              label: const Text('Qarzdorlikka o‘tish'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: effectiveCustomerId,
+                      decoration: const InputDecoration(
+                        labelText: 'Qarzdor klient',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      items: [
+                        for (final customer in shop.customers)
+                          DropdownMenuItem(
+                            value: customer.id,
+                            child: Text(customer.name),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          setSheetState(() => selectedCustomerId = value),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: pickDueDate,
+                      icon: const Icon(Icons.event_available_outlined),
+                      label: Align(
+                        alignment: Alignment.centerLeft,
+                        child:
+                            Text('Qaytarish kuni: ${dateFmt.format(dueDate)}'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Nasiya saqlangach, qarzdorlik ro‘yxati avtomatik ochiladi.',
+                      style: TextStyle(
+                          color: Theme.of(sheetContext).colorScheme.outline),
+                    ),
+                  ],
+                ],
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: canDebtSell
+                      ? () => Navigator.pop(
+                            sheetContext,
+                            _SaleDecision(
+                              choice: choice,
+                              customerId: effectiveCustomerId,
+                              dueDate: dueDate,
+                            ),
+                          )
+                      : null,
+                  icon: Icon(debtMode
+                      ? Icons.account_balance_wallet_outlined
+                      : Icons.point_of_sale),
+                  label: Text(debtMode ? 'Nasiya qilib sotish' : 'Naqd sotish'),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openDebts() {
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const DebtListScreen()),
+    );
+  }
+
+  String? _validCustomerId(ShopService shop, String? customerId) {
+    if (customerId == null) return null;
+    for (final customer in shop.customers) {
+      if (customer.id == customerId) return customerId;
+    }
+    return null;
+  }
+}
+
+enum _PaymentChoice { cash, debt }
+
+class _SaleDecision {
+  const _SaleDecision({
+    required this.choice,
+    this.customerId,
+    this.dueDate,
+  }) : openDebtsOnly = false;
+
+  const _SaleDecision.openDebts()
+      : choice = _PaymentChoice.debt,
+        customerId = null,
+        dueDate = null,
+        openDebtsOnly = true;
+
+  final _PaymentChoice choice;
+  final String? customerId;
+  final DateTime? dueDate;
+  final bool openDebtsOnly;
 }

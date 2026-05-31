@@ -36,6 +36,11 @@ class ShopService extends ChangeNotifier {
   List<DebtPayment> get debtPayments => List.unmodifiable(_debtPayments);
   List<WorkerProfile> get workers => List.unmodifiable(_workers);
 
+  SaleRecord? get latestSale {
+    if (_sales.isEmpty) return null;
+    return _sales.reduce((a, b) => a.at.isAfter(b.at) ? a : b);
+  }
+
   bool _isReady = false;
   bool get isReady => _isReady;
 
@@ -335,6 +340,43 @@ class ShopService extends ChangeNotifier {
       addToDebt: addToDebt,
       debtDueDate: debtDueDate,
     );
+  }
+
+  String? undoLastSale() {
+    final sale = latestSale;
+    if (sale == null) return 'Bekor qilinadigan sotuv yo‘q';
+    return undoSale(sale.id);
+  }
+
+  String? undoSale(String saleId) {
+    final u = _user;
+    if (u == null) return 'Avval tizimga kiring';
+    final index = _sales.indexWhere((s) => s.id == saleId);
+    if (index < 0) return 'Sotuv topilmadi';
+    final sale = _sales[index];
+
+    final product = productById(sale.productId);
+    if (product != null) {
+      product.quantity += sale.quantity;
+    }
+
+    if (sale.onDebt && sale.customerId != null) {
+      final customer = customerById(sale.customerId);
+      if (customer != null) {
+        customer.debt -= sale.total;
+        if (customer.debt <= 0) {
+          customer.debt = 0;
+          customer.debtDueDate = null;
+        }
+      }
+    }
+
+    _sales.removeAt(index);
+    notifyListeners();
+    if (product != null) unawaited(_persistProducts());
+    unawaited(_persistSales());
+    if (sale.onDebt) unawaited(_persistCustomers());
+    return null;
   }
 
   String? addDebtPayment({

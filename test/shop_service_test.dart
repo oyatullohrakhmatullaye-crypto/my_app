@@ -68,6 +68,49 @@ void main() {
       expect(err, contains('Qarzi bor'));
       expect(service.customerById('c1'), isNotNull);
     });
+
+    test('undoes the latest debt sale and restores stock and debt', () {
+      final service = ShopService(localStore: _MemoryStore());
+      service.login(name: 'Admin', role: UserRole.admin);
+      service.addProduct(Product(
+        id: 'p1',
+        name: '2x4 taxta',
+        size: '2x4',
+        type: 'Quruq',
+        price: 100000,
+        costPrice: 80000,
+        quantity: 5,
+      ));
+      service.addCustomer(Customer(
+        id: 'c1',
+        name: 'Ali',
+        phone: '',
+        address: 'Toshkent',
+        type: 'Doimiy',
+        note: '',
+        debt: 200000,
+        creditLimit: 1000000,
+        createdAt: DateTime(2026, 5, 30),
+      ));
+
+      final sellErr = service.sell(
+        productId: 'p1',
+        quantity: 2,
+        customerId: 'c1',
+        addToDebt: true,
+      );
+      expect(sellErr, isNull);
+      expect(service.productById('p1')!.quantity, 3);
+      expect(service.customerById('c1')!.debt, 400000);
+      expect(service.sales, hasLength(1));
+
+      final undoErr = service.undoLastSale();
+
+      expect(undoErr, isNull);
+      expect(service.productById('p1')!.quantity, 5);
+      expect(service.customerById('c1')!.debt, 200000);
+      expect(service.sales, isEmpty);
+    });
   });
 }
 
