@@ -1,4 +1,5 @@
 import '../models/defect_record.dart';
+import '../models/debt_payment.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
 
@@ -56,6 +57,10 @@ class DailyReportSummary {
     required this.workerTotals,
     required this.workerPerformance,
     required this.totalRevenue,
+    required this.cashRevenue,
+    required this.debtRevenue,
+    required this.debtPaymentsReceived,
+    required this.cashInflow,
     required this.soldQuantity,
     required this.averageCheck,
     required this.grossProfit,
@@ -74,6 +79,10 @@ class DailyReportSummary {
   final Map<String, double> workerTotals;
   final List<WorkerPerformance> workerPerformance;
   final double totalRevenue;
+  final double cashRevenue;
+  final double debtRevenue;
+  final double debtPaymentsReceived;
+  final double cashInflow;
   final int soldQuantity;
   final double averageCheck;
   final double grossProfit;
@@ -96,12 +105,23 @@ class ReportAiService {
     required List<DefectRecord> allDefects,
     required List<Product> products,
     required Map<String, double> workerTotals,
+    List<DebtPayment> allDebtPayments = const [],
   }) {
     final sales = allSales.where((s) => _sameDay(s.at, day)).toList()
       ..sort((a, b) => b.at.compareTo(a.at));
     final defects = allDefects.where((d) => _sameDay(d.at, day)).toList()
       ..sort((a, b) => b.at.compareTo(a.at));
+    final debtPayments =
+        allDebtPayments.where((p) => _sameDay(p.at, day)).toList();
     final totalRevenue = sales.fold<double>(0, (sum, s) => sum + s.total);
+    final cashRevenue = sales
+        .where((s) => !s.onDebt)
+        .fold<double>(0, (sum, s) => sum + s.total);
+    final debtRevenue =
+        sales.where((s) => s.onDebt).fold<double>(0, (sum, s) => sum + s.total);
+    final debtPaymentsReceived =
+        debtPayments.fold<double>(0, (sum, p) => sum + p.amount);
+    final cashInflow = cashRevenue + debtPaymentsReceived;
     final grossProfit = sales.fold<double>(0, (sum, s) => sum + s.grossProfit);
     final salesMissingCost = sales.where((s) => !s.hasKnownCost).length;
     final soldQuantity = sales.fold<int>(0, (sum, s) => sum + s.quantity);
@@ -141,6 +161,10 @@ class ReportAiService {
       workerTotals: workerTotals,
       workerPerformance: workerPerformance,
       totalRevenue: totalRevenue,
+      cashRevenue: cashRevenue,
+      debtRevenue: debtRevenue,
+      debtPaymentsReceived: debtPaymentsReceived,
+      cashInflow: cashInflow,
       soldQuantity: soldQuantity,
       averageCheck: sales.isEmpty ? 0 : totalRevenue / sales.length,
       grossProfit: grossProfit,
@@ -166,9 +190,25 @@ class ReportAiService {
       ));
     } else {
       advice.add(ReportAdvice(
-        title: 'Kunlik pul oqimi nazoratda',
+        title: 'Kunlik savdo qayd qilindi',
         body:
-            'Bugun ${summary.checkCount} ta chek orqali ${summary.soldQuantity} dona mahsulot sotildi.',
+            'Bugun ${summary.checkCount} ta chek orqali ${summary.soldQuantity} dona mahsulot sotildi. Kassaga kirgan pulni alohida ko‘ring.',
+        level: ReportAdviceLevel.good,
+      ));
+    }
+
+    if (summary.debtRevenue > 0) {
+      advice.add(ReportAdvice(
+        title: 'Qarzga sotuv kassaga kirmaydi',
+        body:
+            'Bugun ${summary.debtRevenue.toStringAsFixed(0)} so‘m qarzga yozildi. Real kassa kirimi ${summary.cashInflow.toStringAsFixed(0)} so‘m.',
+        level: ReportAdviceLevel.warning,
+      ));
+    } else if (summary.cashInflow > 0) {
+      advice.add(ReportAdvice(
+        title: 'Kassa kirimi ajratildi',
+        body:
+            'Bugun kassaga tushgan pul ${summary.cashInflow.toStringAsFixed(0)} so‘m: naqd sotuv va qarz to‘lovlari birga hisoblandi.',
         level: ReportAdviceLevel.good,
       ));
     }

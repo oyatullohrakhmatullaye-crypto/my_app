@@ -294,7 +294,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             ),
           );
           if (ok == true && context.mounted) {
-            context.read<ShopService>().deleteCustomer(customer.id);
+            final err = context.read<ShopService>().deleteCustomer(customer.id);
+            if (err != null && context.mounted) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text(err)));
+            }
           }
         }
       },

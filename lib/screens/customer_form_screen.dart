@@ -56,12 +56,23 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   void _save() {
     if (!_formKey.currentState!.validate()) return;
     final shop = context.read<ShopService>();
+    if (!(shop.user?.isAdmin ?? false)) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Faqat admin')));
+      return;
+    }
     final existing = widget.customer;
     final debt = parseMoneyInput(_debt.text);
     final limit = parseMoneyInput(_limit.text);
+    if (limit > 0 && debt > limit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Qarz limiti qarzdan kichik bo‘lmasin')),
+      );
+      return;
+    }
 
     if (existing == null) {
-      shop.addCustomer(
+      final err = shop.addCustomer(
         Customer(
           id: 'customer_${DateTime.now().microsecondsSinceEpoch}',
           name: _name.text.trim(),
@@ -75,8 +86,13 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
           debtDueDate: debt > 0 ? _debtDueDate : null,
         ),
       );
+      if (err != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(err)));
+        return;
+      }
     } else {
-      shop.updateCustomer(
+      final err = shop.updateCustomer(
         existing.copyWith(
           name: _name.text.trim(),
           phone: _phone.text.trim(),
@@ -89,6 +105,11 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
           clearDebtDueDate: debt <= 0,
         ),
       );
+      if (err != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(err)));
+        return;
+      }
     }
     Navigator.pop(context);
   }

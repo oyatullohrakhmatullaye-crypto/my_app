@@ -163,27 +163,48 @@ class ShopService extends ChangeNotifier {
     unawaited(_persistProducts());
   }
 
-  void addCustomer(Customer customer) {
+  String? addCustomer(Customer customer) {
+    final u = _user;
+    if (u == null || !u.isAdmin) return 'Faqat admin';
+    if (customer.creditLimit > 0 && customer.debt > customer.creditLimit) {
+      return 'Qarz limiti oshib ketgan';
+    }
     _customers.add(customer);
     notifyListeners();
     unawaited(_persistCustomers());
+    return null;
   }
 
-  void updateCustomer(Customer updated) {
+  String? updateCustomer(Customer updated) {
+    final u = _user;
+    if (u == null || !u.isAdmin) return 'Faqat admin';
+    if (updated.creditLimit > 0 && updated.debt > updated.creditLimit) {
+      return 'Qarz limiti oshib ketgan';
+    }
     final i = _customers.indexWhere((e) => e.id == updated.id);
     if (i >= 0) {
       _customers[i] = updated;
       notifyListeners();
       unawaited(_persistCustomers());
+      return null;
     }
+    return 'Klient topilmadi';
   }
 
-  void deleteCustomer(String id) {
+  String? deleteCustomer(String id) {
+    final u = _user;
+    if (u == null || !u.isAdmin) return 'Faqat admin';
+    final customer = customerById(id);
+    if (customer == null) return 'Klient topilmadi';
+    if (customer.debt > 0) {
+      return 'Qarzi bor klientni o‘chirib bo‘lmaydi. Avval qarzni yoping.';
+    }
     _customers.removeWhere((e) => e.id == id);
     _debtPayments.removeWhere((e) => e.customerId == id);
     notifyListeners();
     unawaited(_persistCustomers());
     unawaited(_persistDebtPayments());
+    return null;
   }
 
   void addWorker(WorkerProfile worker) {
@@ -266,9 +287,15 @@ class ShopService extends ChangeNotifier {
     if (addToDebt && customer == null) {
       return 'Qarzga yozish uchun klient tanlang';
     }
+    final saleTotal = p.price * quantity;
+    if (addToDebt &&
+        customer != null &&
+        customer.creditLimit > 0 &&
+        customer.debt + saleTotal > customer.creditLimit) {
+      return 'Qarz limiti oshib ketadi. Limit: ${customer.creditLimit.toStringAsFixed(0)} so‘m';
+    }
 
     p.quantity -= quantity;
-    final saleTotal = p.price * quantity;
     _sales.add(SaleRecord(
       id: _genId(),
       productId: p.id,
@@ -280,6 +307,7 @@ class ShopService extends ChangeNotifier {
       at: DateTime.now(),
       customerId: customer?.id,
       customerName: customer?.name,
+      onDebt: addToDebt,
     ));
     if (addToDebt && customer != null) {
       customer.debt += saleTotal;
@@ -355,6 +383,10 @@ class ShopService extends ChangeNotifier {
     final customer = customerById(customerId);
     if (customer == null) return 'Klient topilmadi';
     if (amount <= 0) return 'Qarz summasi noto‘g‘ri';
+    if (customer.creditLimit > 0 &&
+        customer.debt + amount > customer.creditLimit) {
+      return 'Qarz limiti oshib ketadi. Limit: ${customer.creditLimit.toStringAsFixed(0)} so‘m';
+    }
 
     customer.debt += amount;
     customer.debtDueDate = dueDate;

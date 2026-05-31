@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/product.dart';
 import '../models/sale_record.dart';
+import '../models/debt_payment.dart';
 import 'report_ai_service.dart';
 
 /// Kunlik hisobot PDF — chop etish yoki ulashish uchun.
@@ -14,6 +15,7 @@ class PdfReportService {
     required DateTime day,
     required List<SaleRecord> allSales,
     required List<Product> products,
+    List<DebtPayment> allDebtPayments = const [],
     required Map<String, double> workerTotals,
     required double grandTotal,
     List<ReportAdvice> advice = const [],
@@ -22,6 +24,17 @@ class PdfReportService {
     final doc = pw.Document();
     final daySales = allSales.where((s) => _sameDay(s.at, day)).toList()
       ..sort((a, b) => a.at.compareTo(b.at));
+    final dayDebtPayments =
+        allDebtPayments.where((p) => _sameDay(p.at, day)).toList();
+    final cashRevenue = daySales
+        .where((s) => !s.onDebt)
+        .fold<double>(0, (sum, sale) => sum + sale.total);
+    final debtRevenue = daySales
+        .where((s) => s.onDebt)
+        .fold<double>(0, (sum, sale) => sum + sale.total);
+    final debtPayments =
+        dayDebtPayments.fold<double>(0, (sum, payment) => sum + payment.amount);
+    final cashInflow = cashRevenue + debtPayments;
     final grossProfit =
         daySales.fold<double>(0, (sum, sale) => sum + sale.grossProfit);
     final profitMargin = grandTotal <= 0 ? 0 : (grossProfit / grandTotal) * 100;
@@ -39,7 +52,12 @@ class PdfReportService {
             ),
           ),
           pw.SizedBox(height: 8),
-          pw.Text('Jami sotuv: ${grandTotal.toStringAsFixed(0)} so‘m',
+          pw.Text('Savdo hajmi: ${grandTotal.toStringAsFixed(0)} so‘m',
+              style: const pw.TextStyle(fontSize: 14)),
+          pw.Text('Kassa kirimi: ${cashInflow.toStringAsFixed(0)} so‘m',
+              style: const pw.TextStyle(fontSize: 14)),
+          pw.Text(
+              'Qarzga sotuv: ${debtRevenue.toStringAsFixed(0)} so‘m · Qarz to‘lovi: ${debtPayments.toStringAsFixed(0)} so‘m',
               style: const pw.TextStyle(fontSize: 14)),
           pw.Text(
               'Yalpi foyda: ${grossProfit.toStringAsFixed(0)} so‘m · Marja: ${profitMargin.toStringAsFixed(1)}%',
@@ -69,10 +87,18 @@ class PdfReportService {
           pw.Text('Sotuvlar ro‘yxati',
               style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
           pw.TableHelper.fromTextArray(
-            headers: const ['Vaqt', 'Klient', 'Mahsulot', 'Soni', 'Summa'],
+            headers: const [
+              'Vaqt',
+              'Tur',
+              'Klient',
+              'Mahsulot',
+              'Soni',
+              'Summa'
+            ],
             data: daySales
                 .map((s) => [
                       _dateFmt.format(s.at),
+                      s.onDebt ? 'Qarzga' : 'Kassa',
                       s.customerName ?? 'Naqd',
                       s.productName,
                       '${s.quantity}',

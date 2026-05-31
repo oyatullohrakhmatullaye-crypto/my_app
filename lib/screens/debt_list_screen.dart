@@ -161,6 +161,7 @@ class _DebtListScreenState extends State<DebtListScreen> {
     final risk = _risk(c);
     final riskColor = _riskColor(risk.level);
     final payments = shop.paymentsForCustomer(c.id);
+    final admin = shop.user?.isAdmin ?? false;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -266,16 +267,18 @@ class _DebtListScreenState extends State<DebtListScreen> {
                     label: const Text('To‘lov'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton.outlined(
-                  tooltip: 'Qarz sanasini tahrirlash',
-                  onPressed: () => Navigator.push<void>(
-                    context,
-                    MaterialPageRoute<void>(
-                        builder: (_) => CustomerFormScreen(customer: c)),
+                if (admin) ...[
+                  const SizedBox(width: 8),
+                  IconButton.outlined(
+                    tooltip: 'Qarz sanasini tahrirlash',
+                    onPressed: () => Navigator.push<void>(
+                      context,
+                      MaterialPageRoute<void>(
+                          builder: (_) => CustomerFormScreen(customer: c)),
+                    ),
+                    icon: const Icon(Icons.edit_calendar_outlined),
                   ),
-                  icon: const Icon(Icons.edit_calendar_outlined),
-                ),
+                ],
               ],
             ),
           ],

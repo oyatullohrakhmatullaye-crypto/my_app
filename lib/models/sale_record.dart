@@ -11,6 +11,7 @@ class SaleRecord {
     this.unitCost = 0,
     this.customerId,
     this.customerName,
+    this.onDebt = false,
   });
 
   final String id;
@@ -23,6 +24,7 @@ class SaleRecord {
   final DateTime at;
   final String? customerId;
   final String? customerName;
+  final bool onDebt;
 
   double get total => quantity * unitPrice;
   double get grossProfit =>
@@ -41,6 +43,7 @@ class SaleRecord {
       'at': at.toIso8601String(),
       'customerId': customerId,
       'customerName': customerName,
+      'onDebt': onDebt,
     };
   }
 
@@ -56,6 +59,7 @@ class SaleRecord {
       at: DateTime.tryParse((map['at'] ?? '').toString()) ?? DateTime.now(),
       customerId: map['customerId']?.toString(),
       customerName: map['customerName']?.toString(),
+      onDebt: map['onDebt'] == true,
     );
   }
 }

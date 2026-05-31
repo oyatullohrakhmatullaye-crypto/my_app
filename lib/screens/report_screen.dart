@@ -22,6 +22,7 @@ class ReportScreen extends StatelessWidget {
       allDefects: shop.defects,
       products: shop.products,
       workerTotals: shop.workerTotalsForDay(today),
+      allDebtPayments: shop.debtPayments,
     );
     final advice = ReportAiService.buildAdvice(summary);
     final dateFmt = DateFormat('dd.MM.yyyy');
@@ -67,6 +68,7 @@ class ReportScreen extends StatelessWidget {
                   day: today,
                   allSales: shop.sales,
                   products: shop.products,
+                  allDebtPayments: shop.debtPayments,
                   workerTotals: summary.workerTotals,
                   grandTotal: summary.totalRevenue,
                   advice: advice,
@@ -158,9 +160,30 @@ class ReportScreen extends StatelessWidget {
             _metricCard(
               context,
               icon: Icons.payments_outlined,
-              label: 'Tushum',
+              label: 'Savdo hajmi',
               value: _money(summary.totalRevenue),
               color: const Color(0xFF2F7D55),
+            ),
+            _metricCard(
+              context,
+              icon: Icons.point_of_sale,
+              label: 'Kassa',
+              value: _money(summary.cashInflow),
+              color: const Color(0xFF315A8C),
+            ),
+            _metricCard(
+              context,
+              icon: Icons.account_balance_wallet_outlined,
+              label: 'Qarzga sotuv',
+              value: _money(summary.debtRevenue),
+              color: const Color(0xFFB15D1F),
+            ),
+            _metricCard(
+              context,
+              icon: Icons.request_quote_outlined,
+              label: 'Qarz to‘lovi',
+              value: _money(summary.debtPaymentsReceived),
+              color: const Color(0xFF6A4C93),
             ),
             _metricCard(
               context,
@@ -405,6 +428,7 @@ class ReportScreen extends StatelessWidget {
                 timeFmt.format(sale.at),
                 '${sale.quantity} dona',
                 sale.customerName ?? 'Naqd',
+                sale.onDebt ? 'qarzga' : 'kassa',
               ].join(' · ')),
               trailing: Text(
                 _money(sale.total),

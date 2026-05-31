@@ -31,6 +31,7 @@ class DashboardScreen extends StatelessWidget {
       allDefects: shop.defects,
       products: shop.products,
       workerTotals: shop.workerTotalsForDay(today),
+      allDebtPayments: shop.debtPayments,
     );
     void openProducts() {
       Navigator.push<void>(
