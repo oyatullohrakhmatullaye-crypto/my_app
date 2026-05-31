@@ -496,11 +496,11 @@ class _SalesScreenState extends State<SalesScreen> {
     final customer = shop.customerById(customerId);
     final saleId = shop.latestSale?.id;
     final who = customer == null ? '' : ' · ${customer.name}';
-    final paymentText = onDebt ? ' · nasiya' : ' · naqd';
+    final paymentText = onDebt ? 'Nasiya' : 'Naqd';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content:
-            Text('${product.name} · $quantity dona sotildi$who$paymentText'),
+        content: Text(
+            '${product.name} · $quantity dona sotildi$who · To‘lov turi: $paymentText'),
         action: saleId == null
             ? null
             : SnackBarAction(
@@ -590,28 +590,36 @@ class _SalesScreenState extends State<SalesScreen> {
                       color: Theme.of(sheetContext).colorScheme.outline),
                 ),
                 const SizedBox(height: 14),
-                SegmentedButton<_PaymentChoice>(
-                  segments: const [
-                    ButtonSegment(
-                      value: _PaymentChoice.cash,
-                      icon: Icon(Icons.point_of_sale),
-                      label: Text('Naqd'),
-                    ),
-                    ButtonSegment(
-                      value: _PaymentChoice.debt,
-                      icon: Icon(Icons.account_balance_wallet_outlined),
-                      label: Text('Nasiya'),
-                    ),
-                  ],
-                  selected: {choice},
-                  onSelectionChanged: (value) => setSheetState(() {
-                    choice = value.first;
-                    if (choice == _PaymentChoice.debt &&
-                        selectedCustomerId == null &&
-                        shop.customers.isNotEmpty) {
-                      selectedCustomerId = shop.customers.first.id;
-                    }
-                  }),
+                InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'To‘lov turi',
+                    prefixIcon: Icon(Icons.payments_outlined),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                  child: SegmentedButton<_PaymentChoice>(
+                    segments: const [
+                      ButtonSegment(
+                        value: _PaymentChoice.cash,
+                        icon: Icon(Icons.point_of_sale),
+                        label: Text('Naqd'),
+                      ),
+                      ButtonSegment(
+                        value: _PaymentChoice.debt,
+                        icon: Icon(Icons.account_balance_wallet_outlined),
+                        label: Text('Nasiya'),
+                      ),
+                    ],
+                    selected: {choice},
+                    onSelectionChanged: (value) => setSheetState(() {
+                      choice = value.first;
+                      if (choice == _PaymentChoice.debt &&
+                          selectedCustomerId == null &&
+                          shop.customers.isNotEmpty) {
+                        selectedCustomerId = shop.customers.first.id;
+                      }
+                    }),
+                  ),
                 ),
                 const SizedBox(height: 14),
                 if (debtMode) ...[

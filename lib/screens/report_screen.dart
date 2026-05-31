@@ -428,7 +428,7 @@ class ReportScreen extends StatelessWidget {
                 timeFmt.format(sale.at),
                 '${sale.quantity} dona',
                 sale.customerName ?? 'Naqd',
-                sale.onDebt ? 'qarzga' : 'kassa',
+                'To‘lov turi: ${sale.paymentTypeLabel}',
               ].join(' · ')),
               trailing: Text(
                 _money(sale.total),

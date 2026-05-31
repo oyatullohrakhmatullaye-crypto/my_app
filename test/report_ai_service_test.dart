@@ -73,5 +73,7 @@ void main() {
     expect(summary.debtRevenue, 200000);
     expect(summary.debtPaymentsReceived, 40000);
     expect(summary.cashInflow, 190000);
+    expect(summary.sales.first.paymentTypeLabel, 'Naqd');
+    expect(summary.sales[1].paymentTypeLabel, 'Nasiya');
   });
 }

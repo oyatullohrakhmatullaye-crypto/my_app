@@ -436,8 +436,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       child: ListTile(
         leading: const Icon(Icons.point_of_sale),
         title: Text(sale.productName),
-        subtitle: Text(
-            '${DateFormat('dd.MM.yyyy HH:mm').format(sale.at)} · ${sale.quantity} dona'),
+        subtitle: Text([
+          DateFormat('dd.MM.yyyy HH:mm').format(sale.at),
+          '${sale.quantity} dona',
+          'To‘lov turi: ${sale.paymentTypeLabel}',
+        ].join(' · ')),
         trailing: Text(_moneyText(sale.total),
             style: const TextStyle(fontWeight: FontWeight.w900)),
       ),

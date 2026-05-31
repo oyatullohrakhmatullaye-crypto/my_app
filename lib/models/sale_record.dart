@@ -30,6 +30,7 @@ class SaleRecord {
   double get grossProfit =>
       unitCost <= 0 ? 0 : quantity * (unitPrice - unitCost);
   bool get hasKnownCost => unitCost > 0;
+  String get paymentTypeLabel => onDebt ? 'Nasiya' : 'Naqd';
 
   Map<String, dynamic> toMap() {
     return {

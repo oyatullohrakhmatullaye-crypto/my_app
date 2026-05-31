@@ -89,7 +89,7 @@ class PdfReportService {
           pw.TableHelper.fromTextArray(
             headers: const [
               'Vaqt',
-              'Tur',
+              'To‘lov turi',
               'Klient',
               'Mahsulot',
               'Soni',
@@ -98,7 +98,7 @@ class PdfReportService {
             data: daySales
                 .map((s) => [
                       _dateFmt.format(s.at),
-                      s.onDebt ? 'Qarzga' : 'Kassa',
+                      s.paymentTypeLabel,
                       s.customerName ?? 'Naqd',
                       s.productName,
                       '${s.quantity}',
