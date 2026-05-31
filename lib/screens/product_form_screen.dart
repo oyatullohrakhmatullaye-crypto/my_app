@@ -20,6 +20,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _size = TextEditingController();
   final _type = TextEditingController();
   final _price = TextEditingController();
+  final _costPrice = TextEditingController();
   final _qty = TextEditingController();
 
   static const _typePresets = ['Quruq', 'Ho‘l', 'Fanera', 'Brus', 'Reyka'];
@@ -34,6 +35,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _size.text = p.size;
       _type.text = p.type;
       _price.text = p.price.toStringAsFixed(0);
+      _costPrice.text = p.costPrice <= 0 ? '' : p.costPrice.toStringAsFixed(0);
       _qty.text = '${p.quantity}';
     }
   }
@@ -44,6 +46,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _size.dispose();
     _type.dispose();
     _price.dispose();
+    _costPrice.dispose();
     _qty.dispose();
     super.dispose();
   }
@@ -58,6 +61,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final price = _parseMoney(_price.text);
+    final costPrice = _parseMoney(_costPrice.text);
     final qty = int.parse(_digitsOnly(_qty.text));
     final existing = widget.product;
     if (existing != null) {
@@ -67,6 +71,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           size: _size.text.trim(),
           type: _type.text.trim(),
           price: price,
+          costPrice: costPrice,
           quantity: qty,
         ),
       );
@@ -78,6 +83,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           size: _size.text.trim(),
           type: _type.text.trim(),
           price: price,
+          costPrice: costPrice,
           quantity: qty,
         ),
       );
@@ -167,6 +173,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         }
                         return null;
                       },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _costPrice,
+                      keyboardType: TextInputType.text,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Tan narx',
+                        hintText: '35000 yoki 35 000 so‘m',
+                        suffixText: 'so‘m',
+                        prefixIcon: Icon(Icons.price_check_outlined),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(

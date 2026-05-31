@@ -198,6 +198,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Widget _productCard(BuildContext context, Product p, bool admin) {
     final status = _stockStatus(p);
     final total = p.price * p.quantity;
+    final costValue = p.costPrice * p.quantity;
+    final profitText = p.costPrice <= 0
+        ? 'Tan narx yo‘q'
+        : '${p.profitPerUnit.toStringAsFixed(0)} so‘m';
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -251,9 +255,22 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 Expanded(
                     child:
                         _detail('Narx', '${p.price.toStringAsFixed(0)} so‘m')),
+                Expanded(
+                    child: _detail(
+                        'Tan narx',
+                        p.costPrice <= 0
+                            ? 'Yo‘q'
+                            : '${p.costPrice.toStringAsFixed(0)} so‘m')),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _detail('Foyda/dona', profitText)),
                 Expanded(child: _detail('Zaxira', '${p.quantity} dona')),
                 Expanded(
-                    child: _detail('Jami', '${total.toStringAsFixed(0)} so‘m')),
+                    child: _detail(p.costPrice <= 0 ? 'Jami' : 'Tan qiymat',
+                        '${(p.costPrice <= 0 ? total : costValue).toStringAsFixed(0)} so‘m')),
               ],
             ),
           ],

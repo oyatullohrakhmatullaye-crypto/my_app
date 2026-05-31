@@ -22,6 +22,9 @@ class PdfReportService {
     final doc = pw.Document();
     final daySales = allSales.where((s) => _sameDay(s.at, day)).toList()
       ..sort((a, b) => a.at.compareTo(b.at));
+    final grossProfit =
+        daySales.fold<double>(0, (sum, sale) => sum + sale.grossProfit);
+    final profitMargin = grandTotal <= 0 ? 0 : (grossProfit / grandTotal) * 100;
 
     doc.addPage(
       pw.MultiPage(
@@ -37,6 +40,9 @@ class PdfReportService {
           ),
           pw.SizedBox(height: 8),
           pw.Text('Jami sotuv: ${grandTotal.toStringAsFixed(0)} so‘m',
+              style: const pw.TextStyle(fontSize: 14)),
+          pw.Text(
+              'Yalpi foyda: ${grossProfit.toStringAsFixed(0)} so‘m · Marja: ${profitMargin.toStringAsFixed(1)}%',
               style: const pw.TextStyle(fontSize: 14)),
           if (advice.isNotEmpty) ...[
             pw.SizedBox(height: 12),

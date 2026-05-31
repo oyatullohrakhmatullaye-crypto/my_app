@@ -1,4 +1,4 @@
-/// Taxta mahsuloti: nomi, o‘lchami, turi, narxi va zaxira.
+/// Taxta mahsuloti: nomi, o‘lchami, turi, sotuv/tan narxi va zaxira.
 class Product {
   Product({
     required this.id,
@@ -7,6 +7,7 @@ class Product {
     required this.type,
     required this.price,
     required this.quantity,
+    this.costPrice = 0,
   });
 
   final String id;
@@ -14,13 +15,19 @@ class Product {
   String size;
   String type;
   double price;
+  double costPrice;
   int quantity;
+
+  double get profitPerUnit => costPrice <= 0 ? 0 : price - costPrice;
+  double get marginPercent =>
+      price <= 0 || costPrice <= 0 ? 0 : ((price - costPrice) / price) * 100;
 
   Product copyWith({
     String? name,
     String? size,
     String? type,
     double? price,
+    double? costPrice,
     int? quantity,
   }) {
     return Product(
@@ -29,6 +36,7 @@ class Product {
       size: size ?? this.size,
       type: type ?? this.type,
       price: price ?? this.price,
+      costPrice: costPrice ?? this.costPrice,
       quantity: quantity ?? this.quantity,
     );
   }
@@ -40,6 +48,7 @@ class Product {
       'size': size,
       'type': type,
       'price': price,
+      'costPrice': costPrice,
       'quantity': quantity,
     };
   }
@@ -51,6 +60,7 @@ class Product {
       size: (map['size'] ?? '').toString(),
       type: (map['type'] ?? '').toString(),
       price: (map['price'] as num?)?.toDouble() ?? 0,
+      costPrice: (map['costPrice'] as num?)?.toDouble() ?? 0,
       quantity: (map['quantity'] as num?)?.toInt() ?? 0,
     );
   }

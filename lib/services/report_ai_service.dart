@@ -58,6 +58,9 @@ class DailyReportSummary {
     required this.totalRevenue,
     required this.soldQuantity,
     required this.averageCheck,
+    required this.grossProfit,
+    required this.profitMargin,
+    required this.salesMissingCost,
     required this.defectQuantity,
     required this.defectValue,
     required this.stockValue,
@@ -73,6 +76,9 @@ class DailyReportSummary {
   final double totalRevenue;
   final int soldQuantity;
   final double averageCheck;
+  final double grossProfit;
+  final double profitMargin;
+  final int salesMissingCost;
   final int defectQuantity;
   final double defectValue;
   final double stockValue;
@@ -96,6 +102,8 @@ class ReportAiService {
     final defects = allDefects.where((d) => _sameDay(d.at, day)).toList()
       ..sort((a, b) => b.at.compareTo(a.at));
     final totalRevenue = sales.fold<double>(0, (sum, s) => sum + s.total);
+    final grossProfit = sales.fold<double>(0, (sum, s) => sum + s.grossProfit);
+    final salesMissingCost = sales.where((s) => !s.hasKnownCost).length;
     final soldQuantity = sales.fold<int>(0, (sum, s) => sum + s.quantity);
     final defectQuantity = defects.fold<int>(0, (sum, d) => sum + d.quantity);
     final stockValue =
@@ -135,6 +143,9 @@ class ReportAiService {
       totalRevenue: totalRevenue,
       soldQuantity: soldQuantity,
       averageCheck: sales.isEmpty ? 0 : totalRevenue / sales.length,
+      grossProfit: grossProfit,
+      profitMargin: totalRevenue <= 0 ? 0 : (grossProfit / totalRevenue) * 100,
+      salesMissingCost: salesMissingCost,
       defectQuantity: defectQuantity,
       defectValue: defectValue,
       stockValue: stockValue,
@@ -184,6 +195,24 @@ class ReportAiService {
         title: 'Zaxira yetarli',
         body: 'Hozircha mahsulotlar bo‘yicha kritik kamlik ko‘rinmayapti.',
         level: ReportAdviceLevel.good,
+      ));
+    }
+
+    if (summary.salesMissingCost > 0) {
+      advice.add(ReportAdvice(
+        title: 'Foyda to‘liq ko‘rinmayapti',
+        body:
+            '${summary.salesMissingCost} ta sotuvda tan narx yo‘q. Mahsulotlarga tan narx kiritilsa, sof foyda va marja aniq chiqadi.',
+        level: ReportAdviceLevel.warning,
+      ));
+    } else if (summary.grossProfit > 0) {
+      advice.add(ReportAdvice(
+        title: 'Foyda nazoratga tushdi',
+        body:
+            'Bugungi taxminiy yalpi foyda ${summary.grossProfit.toStringAsFixed(0)} so‘m, marja ${summary.profitMargin.toStringAsFixed(1)}%.',
+        level: summary.profitMargin < 15
+            ? ReportAdviceLevel.warning
+            : ReportAdviceLevel.good,
       ));
     }
 

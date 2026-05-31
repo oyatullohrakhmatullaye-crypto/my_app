@@ -16,6 +16,7 @@ void main() {
           productName: '2x4',
           quantity: 2,
           unitPrice: 50000,
+          unitCost: 35000,
           workerName: 'Ali',
           at: day,
         ),
@@ -25,6 +26,7 @@ void main() {
           productName: '2x6',
           quantity: 1,
           unitPrice: 200000,
+          unitCost: 160000,
           workerName: 'Vali',
           at: day,
         ),
@@ -34,6 +36,7 @@ void main() {
           productName: '2x4',
           quantity: 1,
           unitPrice: 50000,
+          unitCost: 35000,
           workerName: 'Ali',
           at: day,
         ),
@@ -51,5 +54,7 @@ void main() {
     expect(summary.workerPerformance.last.name, 'Ali');
     expect(summary.workerPerformance.last.checks, 2);
     expect(summary.workerPerformance.last.quantity, 3);
+    expect(summary.grossProfit, 85000);
+    expect(summary.profitMargin.toStringAsFixed(1), '24.3');
   });
 }

@@ -178,6 +178,20 @@ class ReportScreen extends StatelessWidget {
             ),
             _metricCard(
               context,
+              icon: Icons.trending_up,
+              label: 'Yalpi foyda',
+              value: _money(summary.grossProfit),
+              color: const Color(0xFF2F7D55),
+            ),
+            _metricCard(
+              context,
+              icon: Icons.percent,
+              label: 'Marja',
+              value: '${summary.profitMargin.toStringAsFixed(1)}%',
+              color: const Color(0xFF6A4C93),
+            ),
+            _metricCard(
+              context,
               icon: Icons.report_problem_outlined,
               label: 'Brak',
               value: '${summary.defectQuantity} dona',

@@ -90,6 +90,7 @@ class ShopService extends ChangeNotifier {
         size: '2x4',
         type: 'Quruq',
         price: 45000,
+        costPrice: 36000,
         quantity: 120,
       ),
       Product(
@@ -98,6 +99,7 @@ class ShopService extends ChangeNotifier {
         size: '2x6',
         type: 'Quruq',
         price: 62000,
+        costPrice: 50000,
         quantity: 80,
       ),
       Product(
@@ -106,6 +108,7 @@ class ShopService extends ChangeNotifier {
         size: '1.22x2.44',
         type: 'Fanera',
         price: 180000,
+        costPrice: 150000,
         quantity: 40,
       ),
     ];
@@ -272,6 +275,7 @@ class ShopService extends ChangeNotifier {
       productName: p.name,
       quantity: quantity,
       unitPrice: p.price,
+      unitCost: p.costPrice,
       workerName: u.name,
       at: DateTime.now(),
       customerId: customer?.id,
