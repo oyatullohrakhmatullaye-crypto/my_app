@@ -9,6 +9,7 @@ import '../models/defect_record.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
 import '../models/user_role.dart';
+import '../models/worker_profile.dart';
 import 'shop_local_store.dart';
 import 'voice_sale_parser.dart';
 
@@ -26,12 +27,14 @@ class ShopService extends ChangeNotifier {
   final List<DefectRecord> _defects = [];
   final List<Customer> _customers = [];
   final List<DebtPayment> _debtPayments = [];
+  final List<WorkerProfile> _workers = [];
 
   List<Product> get products => List.unmodifiable(_products);
   List<SaleRecord> get sales => List.unmodifiable(_sales);
   List<DefectRecord> get defects => List.unmodifiable(_defects);
   List<Customer> get customers => List.unmodifiable(_customers);
   List<DebtPayment> get debtPayments => List.unmodifiable(_debtPayments);
+  List<WorkerProfile> get workers => List.unmodifiable(_workers);
 
   bool _isReady = false;
   bool get isReady => _isReady;
@@ -46,6 +49,7 @@ class ShopService extends ChangeNotifier {
     final storedDefects = _localStore.loadDefects();
     final storedCustomers = _localStore.loadCustomers();
     final storedDebtPayments = _localStore.loadDebtPayments();
+    final storedWorkers = _localStore.loadWorkers();
 
     _products
       ..clear()
@@ -62,12 +66,19 @@ class ShopService extends ChangeNotifier {
     _debtPayments
       ..clear()
       ..addAll(storedDebtPayments);
+    _workers
+      ..clear()
+      ..addAll(storedWorkers);
+    _syncWorkersFromSales();
 
     _isReady = true;
     notifyListeners();
 
     if (storedProducts.isEmpty) {
       await _persistProducts();
+    }
+    if (storedWorkers.isEmpty && _workers.isNotEmpty) {
+      await _persistWorkers();
     }
   }
 
@@ -108,6 +119,7 @@ class ShopService extends ChangeNotifier {
   Future<void> _persistCustomers() => _localStore.saveCustomers(_customers);
   Future<void> _persistDebtPayments() =>
       _localStore.saveDebtPayments(_debtPayments);
+  Future<void> _persistWorkers() => _localStore.saveWorkers(_workers);
 
   void login({required String name, required UserRole role}) {
     _user = AppUser(
@@ -116,6 +128,9 @@ class ShopService extends ChangeNotifier {
           : name.trim(),
       role: role,
     );
+    if (role == UserRole.worker) {
+      _ensureWorkerProfile(_user!.name);
+    }
     notifyListeners();
   }
 
@@ -168,6 +183,42 @@ class ShopService extends ChangeNotifier {
     unawaited(_persistDebtPayments());
   }
 
+  void addWorker(WorkerProfile worker) {
+    final cleanName = worker.name.trim();
+    if (cleanName.isEmpty) return;
+    final existing = workerByName(cleanName);
+    if (existing != null) {
+      updateWorker(existing.copyWith(
+        phone: worker.phone,
+        roleTitle: worker.roleTitle,
+        dailyTarget: worker.dailyTarget,
+        active: worker.active,
+        note: worker.note,
+      ));
+      return;
+    }
+    _workers.add(worker);
+    _sortWorkers();
+    notifyListeners();
+    if (_isReady) unawaited(_persistWorkers());
+  }
+
+  void updateWorker(WorkerProfile updated) {
+    final i = _workers.indexWhere((e) => e.id == updated.id);
+    if (i >= 0) {
+      _workers[i] = updated;
+      _sortWorkers();
+      notifyListeners();
+      if (_isReady) unawaited(_persistWorkers());
+    }
+  }
+
+  void deleteWorker(String id) {
+    _workers.removeWhere((e) => e.id == id);
+    notifyListeners();
+    if (_isReady) unawaited(_persistWorkers());
+  }
+
   Customer? customerById(String? id) {
     if (id == null) return null;
     try {
@@ -175,6 +226,14 @@ class ShopService extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  WorkerProfile? workerByName(String name) {
+    final normalized = _normName(name);
+    for (final worker in _workers) {
+      if (_normName(worker.name) == normalized) return worker;
+    }
+    return null;
   }
 
   Product? productById(String id) {
@@ -445,6 +504,52 @@ class ShopService extends ChangeNotifier {
     }
     return map;
   }
+
+  void _ensureWorkerProfile(String name) {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty || workerByName(cleanName) != null) return;
+    _workers.add(WorkerProfile(
+      id: _genId(),
+      name: cleanName,
+      phone: '',
+      roleTitle: 'Sotuvchi',
+      dailyTarget: 0,
+      active: true,
+      note: '',
+      createdAt: DateTime.now(),
+    ));
+    _sortWorkers();
+    if (_isReady) unawaited(_persistWorkers());
+  }
+
+  void _syncWorkersFromSales() {
+    var changed = false;
+    for (final sale in _sales) {
+      final workerName = sale.workerName.trim();
+      if (workerName.isEmpty || workerByName(workerName) != null) continue;
+      _workers.add(WorkerProfile(
+        id: _genId(),
+        name: workerName,
+        phone: '',
+        roleTitle: 'Sotuvchi',
+        dailyTarget: 0,
+        active: true,
+        note: 'Sotuv tarixidan qo‘shildi',
+        createdAt: sale.at,
+      ));
+      changed = true;
+    }
+    if (changed) _sortWorkers();
+  }
+
+  void _sortWorkers() {
+    _workers.sort((a, b) {
+      if (a.active != b.active) return a.active ? -1 : 1;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+  }
+
+  String _normName(String value) => value.trim().toLowerCase();
 
   bool get isPastReportHour {
     final now = DateTime.now();

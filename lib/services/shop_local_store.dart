@@ -5,6 +5,7 @@ import '../models/debt_payment.dart';
 import '../models/defect_record.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
+import '../models/worker_profile.dart';
 
 class ShopLocalStore {
   static const _boxName = 'shop_box';
@@ -13,6 +14,7 @@ class ShopLocalStore {
   static const _kDefects = 'defects';
   static const _kCustomers = 'customers';
   static const _kDebtPayments = 'debtPayments';
+  static const _kWorkers = 'workers';
 
   Future<void> init() async {
     await Hive.initFlutter();
@@ -68,6 +70,16 @@ class ShopLocalStore {
         .toList();
   }
 
+  List<WorkerProfile> loadWorkers() {
+    final raw = _box.get(_kWorkers) as List?;
+    if (raw == null) return [];
+    return raw
+        .whereType<Map>()
+        .map((e) => WorkerProfile.fromMap(Map<String, dynamic>.from(e)))
+        .where((e) => e.name.trim().isNotEmpty)
+        .toList();
+  }
+
   Future<void> saveProducts(List<Product> items) async {
     await _box.put(
         _kProducts, items.map((e) => e.toMap()).toList(growable: false));
@@ -91,5 +103,10 @@ class ShopLocalStore {
   Future<void> saveDebtPayments(List<DebtPayment> items) async {
     await _box.put(
         _kDebtPayments, items.map((e) => e.toMap()).toList(growable: false));
+  }
+
+  Future<void> saveWorkers(List<WorkerProfile> items) async {
+    await _box.put(
+        _kWorkers, items.map((e) => e.toMap()).toList(growable: false));
   }
 }

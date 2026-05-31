@@ -12,6 +12,7 @@ import 'product_form_screen.dart';
 import 'product_list_screen.dart';
 import 'report_screen.dart';
 import 'sales_screen.dart';
+import 'worker_list_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -50,6 +51,13 @@ class DashboardScreen extends StatelessWidget {
       );
     }
 
+    void openWorkers() {
+      Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const WorkerListScreen()),
+      );
+    }
+
     if (u == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -74,6 +82,12 @@ class DashboardScreen extends StatelessWidget {
             tooltip: 'Klientlar',
             onPressed: openCustomers,
           ),
+          if (u.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.badge_outlined),
+              tooltip: 'Ishchilar',
+              onPressed: openWorkers,
+            ),
           IconButton(
             icon: const Icon(Icons.account_balance_wallet_outlined),
             tooltip: 'Qarzdorlik',
@@ -145,6 +159,14 @@ class DashboardScreen extends StatelessWidget {
                 icon: Icons.groups_outlined,
                 onTap: openCustomers,
               ),
+              if (u.isAdmin)
+                _tapStatCard(
+                  context,
+                  label: 'Ishchi',
+                  value: '${shop.workers.length}',
+                  icon: Icons.badge_outlined,
+                  onTap: openWorkers,
+                ),
               _tapStatCard(
                 context,
                 label: 'Qarz',
@@ -207,6 +229,16 @@ class DashboardScreen extends StatelessWidget {
                 color: const Color(0xFF6A4C93),
                 onTap: openCustomers,
               ),
+              if (u.isAdmin) ...[
+                const SizedBox(height: 10),
+                _quickActionButton(
+                  context,
+                  label: 'Ishchilar',
+                  icon: Icons.badge_outlined,
+                  color: const Color(0xFF315A8C),
+                  onTap: openWorkers,
+                ),
+              ],
               const SizedBox(height: 10),
               _quickActionButton(
                 context,
