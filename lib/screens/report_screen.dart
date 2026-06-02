@@ -173,6 +173,20 @@ class ReportScreen extends StatelessWidget {
             ),
             _metricCard(
               context,
+              icon: Icons.payments_outlined,
+              label: 'Naqd',
+              value: _money(summary.cashRevenue),
+              color: const Color(0xFF2F7D55),
+            ),
+            _metricCard(
+              context,
+              icon: Icons.credit_card,
+              label: 'Plastik',
+              value: _money(summary.cardRevenue),
+              color: const Color(0xFF315A8C),
+            ),
+            _metricCard(
+              context,
               icon: Icons.account_balance_wallet_outlined,
               label: 'Qarzga sotuv',
               value: _money(summary.debtRevenue),

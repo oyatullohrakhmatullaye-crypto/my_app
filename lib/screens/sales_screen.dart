@@ -5,6 +5,7 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import '../models/product.dart';
+import '../models/sale_record.dart';
 import '../services/shop_service.dart';
 import 'debt_list_screen.dart';
 
@@ -486,6 +487,7 @@ class _SalesScreenState extends State<SalesScreen> {
       customerId: customerId,
       addToDebt: onDebt,
       debtDueDate: onDebt ? decision.dueDate : null,
+      paymentType: decision.paymentType,
     );
     if (!mounted) return;
     if (err != null) {
@@ -496,7 +498,7 @@ class _SalesScreenState extends State<SalesScreen> {
     final customer = shop.customerById(customerId);
     final saleId = shop.latestSale?.id;
     final who = customer == null ? '' : ' · ${customer.name}';
-    final paymentText = onDebt ? 'Nasiya' : 'Naqd';
+    final paymentText = decision.paymentTypeLabel;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -605,6 +607,11 @@ class _SalesScreenState extends State<SalesScreen> {
                         label: Text('Naqd'),
                       ),
                       ButtonSegment(
+                        value: _PaymentChoice.card,
+                        icon: Icon(Icons.credit_card),
+                        label: Text('Plastik'),
+                      ),
+                      ButtonSegment(
                         value: _PaymentChoice.debt,
                         icon: Icon(Icons.account_balance_wallet_outlined),
                         label: Text('Nasiya'),
@@ -703,8 +710,10 @@ class _SalesScreenState extends State<SalesScreen> {
                       : null,
                   icon: Icon(debtMode
                       ? Icons.account_balance_wallet_outlined
-                      : Icons.point_of_sale),
-                  label: Text(debtMode ? 'Nasiya qilib sotish' : 'Naqd sotish'),
+                      : choice == _PaymentChoice.card
+                          ? Icons.credit_card
+                          : Icons.point_of_sale),
+                  label: Text(choice.buttonLabel),
                 ),
               ],
             ),
@@ -730,7 +739,29 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 }
 
-enum _PaymentChoice { cash, debt }
+enum _PaymentChoice {
+  cash,
+  card,
+  debt;
+
+  String get paymentType => switch (this) {
+        _PaymentChoice.card => SaleRecord.paymentTypeCard,
+        _PaymentChoice.debt => SaleRecord.paymentTypeDebt,
+        _PaymentChoice.cash => SaleRecord.paymentTypeCash,
+      };
+
+  String get paymentTypeLabel => switch (this) {
+        _PaymentChoice.card => 'Plastik',
+        _PaymentChoice.debt => 'Nasiya',
+        _PaymentChoice.cash => 'Naqd',
+      };
+
+  String get buttonLabel => switch (this) {
+        _PaymentChoice.card => 'Plastik orqali sotish',
+        _PaymentChoice.debt => 'Nasiya qilib sotish',
+        _PaymentChoice.cash => 'Naqd sotish',
+      };
+}
 
 class _SaleDecision {
   const _SaleDecision({
@@ -749,4 +780,7 @@ class _SaleDecision {
   final String? customerId;
   final DateTime? dueDate;
   final bool openDebtsOnly;
+
+  String get paymentType => choice.paymentType;
+  String get paymentTypeLabel => choice.paymentTypeLabel;
 }

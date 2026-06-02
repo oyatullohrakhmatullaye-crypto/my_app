@@ -27,14 +27,17 @@ class PdfReportService {
     final dayDebtPayments =
         allDebtPayments.where((p) => _sameDay(p.at, day)).toList();
     final cashRevenue = daySales
-        .where((s) => !s.onDebt)
+        .where((s) => s.paymentType == SaleRecord.paymentTypeCash)
+        .fold<double>(0, (sum, sale) => sum + sale.total);
+    final cardRevenue = daySales
+        .where((s) => s.paymentType == SaleRecord.paymentTypeCard)
         .fold<double>(0, (sum, sale) => sum + sale.total);
     final debtRevenue = daySales
         .where((s) => s.onDebt)
         .fold<double>(0, (sum, sale) => sum + sale.total);
     final debtPayments =
         dayDebtPayments.fold<double>(0, (sum, payment) => sum + payment.amount);
-    final cashInflow = cashRevenue + debtPayments;
+    final cashInflow = cashRevenue + cardRevenue + debtPayments;
     final grossProfit =
         daySales.fold<double>(0, (sum, sale) => sum + sale.grossProfit);
     final profitMargin = grandTotal <= 0 ? 0 : (grossProfit / grandTotal) * 100;
@@ -57,7 +60,10 @@ class PdfReportService {
           pw.Text('Kassa kirimi: ${cashInflow.toStringAsFixed(0)} so‘m',
               style: const pw.TextStyle(fontSize: 14)),
           pw.Text(
-              'Qarzga sotuv: ${debtRevenue.toStringAsFixed(0)} so‘m · Qarz to‘lovi: ${debtPayments.toStringAsFixed(0)} so‘m',
+              'Naqd: ${cashRevenue.toStringAsFixed(0)} so‘m · Plastik: ${cardRevenue.toStringAsFixed(0)} so‘m',
+              style: const pw.TextStyle(fontSize: 14)),
+          pw.Text(
+              'Nasiya: ${debtRevenue.toStringAsFixed(0)} so‘m · Qarz to‘lovi: ${debtPayments.toStringAsFixed(0)} so‘m',
               style: const pw.TextStyle(fontSize: 14)),
           pw.Text(
               'Yalpi foyda: ${grossProfit.toStringAsFixed(0)} so‘m · Marja: ${profitMargin.toStringAsFixed(1)}%',

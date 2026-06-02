@@ -58,6 +58,7 @@ class DailyReportSummary {
     required this.workerPerformance,
     required this.totalRevenue,
     required this.cashRevenue,
+    required this.cardRevenue,
     required this.debtRevenue,
     required this.debtPaymentsReceived,
     required this.cashInflow,
@@ -80,6 +81,7 @@ class DailyReportSummary {
   final List<WorkerPerformance> workerPerformance;
   final double totalRevenue;
   final double cashRevenue;
+  final double cardRevenue;
   final double debtRevenue;
   final double debtPaymentsReceived;
   final double cashInflow;
@@ -115,13 +117,16 @@ class ReportAiService {
         allDebtPayments.where((p) => _sameDay(p.at, day)).toList();
     final totalRevenue = sales.fold<double>(0, (sum, s) => sum + s.total);
     final cashRevenue = sales
-        .where((s) => !s.onDebt)
+        .where((s) => s.paymentType == SaleRecord.paymentTypeCash)
+        .fold<double>(0, (sum, s) => sum + s.total);
+    final cardRevenue = sales
+        .where((s) => s.paymentType == SaleRecord.paymentTypeCard)
         .fold<double>(0, (sum, s) => sum + s.total);
     final debtRevenue =
         sales.where((s) => s.onDebt).fold<double>(0, (sum, s) => sum + s.total);
     final debtPaymentsReceived =
         debtPayments.fold<double>(0, (sum, p) => sum + p.amount);
-    final cashInflow = cashRevenue + debtPaymentsReceived;
+    final cashInflow = cashRevenue + cardRevenue + debtPaymentsReceived;
     final grossProfit = sales.fold<double>(0, (sum, s) => sum + s.grossProfit);
     final salesMissingCost = sales.where((s) => !s.hasKnownCost).length;
     final soldQuantity = sales.fold<int>(0, (sum, s) => sum + s.quantity);
@@ -162,6 +167,7 @@ class ReportAiService {
       workerPerformance: workerPerformance,
       totalRevenue: totalRevenue,
       cashRevenue: cashRevenue,
+      cardRevenue: cardRevenue,
       debtRevenue: debtRevenue,
       debtPaymentsReceived: debtPaymentsReceived,
       cashInflow: cashInflow,
@@ -208,7 +214,7 @@ class ReportAiService {
       advice.add(ReportAdvice(
         title: 'Kassa kirimi ajratildi',
         body:
-            'Bugun kassaga tushgan pul ${summary.cashInflow.toStringAsFixed(0)} so‘m: naqd sotuv va qarz to‘lovlari birga hisoblandi.',
+            'Bugun kassaga tushgan pul ${summary.cashInflow.toStringAsFixed(0)} so‘m: naqd, plastik va qarz to‘lovlari birga hisoblandi.',
         level: ReportAdviceLevel.good,
       ));
     }

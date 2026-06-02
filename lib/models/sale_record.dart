@@ -1,5 +1,9 @@
 /// Bitta sotuv yozuvi — hisobot va PDF uchun.
 class SaleRecord {
+  static const paymentTypeCash = 'cash';
+  static const paymentTypeCard = 'card';
+  static const paymentTypeDebt = 'debt';
+
   SaleRecord({
     required this.id,
     required this.productId,
@@ -11,8 +15,10 @@ class SaleRecord {
     this.unitCost = 0,
     this.customerId,
     this.customerName,
-    this.onDebt = false,
-  });
+    bool onDebt = false,
+    String? paymentType,
+  })  : paymentType = _normalizePaymentType(paymentType, onDebt),
+        onDebt = _normalizePaymentType(paymentType, onDebt) == paymentTypeDebt;
 
   final String id;
   final String productId;
@@ -24,13 +30,18 @@ class SaleRecord {
   final DateTime at;
   final String? customerId;
   final String? customerName;
+  final String paymentType;
   final bool onDebt;
 
   double get total => quantity * unitPrice;
   double get grossProfit =>
       unitCost <= 0 ? 0 : quantity * (unitPrice - unitCost);
   bool get hasKnownCost => unitCost > 0;
-  String get paymentTypeLabel => onDebt ? 'Nasiya' : 'Naqd';
+  String get paymentTypeLabel => switch (paymentType) {
+        paymentTypeCard => 'Plastik',
+        paymentTypeDebt => 'Nasiya',
+        _ => 'Naqd',
+      };
 
   Map<String, dynamic> toMap() {
     return {
@@ -44,6 +55,7 @@ class SaleRecord {
       'at': at.toIso8601String(),
       'customerId': customerId,
       'customerName': customerName,
+      'paymentType': paymentType,
       'onDebt': onDebt,
     };
   }
@@ -60,7 +72,17 @@ class SaleRecord {
       at: DateTime.tryParse((map['at'] ?? '').toString()) ?? DateTime.now(),
       customerId: map['customerId']?.toString(),
       customerName: map['customerName']?.toString(),
+      paymentType: map['paymentType']?.toString(),
       onDebt: map['onDebt'] == true,
     );
+  }
+
+  static String _normalizePaymentType(String? value, bool onDebt) {
+    if (onDebt) return paymentTypeDebt;
+    return switch (value) {
+      paymentTypeCard => paymentTypeCard,
+      paymentTypeDebt => paymentTypeDebt,
+      _ => paymentTypeCash,
+    };
   }
 }

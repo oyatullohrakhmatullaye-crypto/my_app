@@ -41,6 +41,7 @@ void main() {
           unitCost: 35000,
           workerName: 'Ali',
           at: day,
+          paymentType: SaleRecord.paymentTypeCard,
         ),
       ],
       allDefects: <DefectRecord>[],
@@ -69,11 +70,13 @@ void main() {
     expect(summary.grossProfit, 85000);
     expect(summary.profitMargin.toStringAsFixed(1), '24.3');
     expect(summary.totalRevenue, 350000);
-    expect(summary.cashRevenue, 150000);
+    expect(summary.cashRevenue, 100000);
+    expect(summary.cardRevenue, 50000);
     expect(summary.debtRevenue, 200000);
     expect(summary.debtPaymentsReceived, 40000);
     expect(summary.cashInflow, 190000);
     expect(summary.sales.first.paymentTypeLabel, 'Naqd');
     expect(summary.sales[1].paymentTypeLabel, 'Nasiya');
+    expect(summary.sales.last.paymentTypeLabel, 'Plastik');
   });
 }

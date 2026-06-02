@@ -279,6 +279,7 @@ class ShopService extends ChangeNotifier {
     String? customerId,
     bool addToDebt = false,
     DateTime? debtDueDate,
+    String paymentType = SaleRecord.paymentTypeCash,
   }) {
     final u = _user;
     if (u == null) return 'Avval tizimga kiring';
@@ -312,6 +313,7 @@ class ShopService extends ChangeNotifier {
       at: DateTime.now(),
       customerId: customer?.id,
       customerName: customer?.name,
+      paymentType: addToDebt ? SaleRecord.paymentTypeDebt : paymentType,
       onDebt: addToDebt,
     ));
     if (addToDebt && customer != null) {
